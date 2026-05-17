@@ -1,1 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-Tone (FTN) – Federal Reserve Tone Index</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e14;
+            color: #e6e1cf;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #131820;
+            border: 1px solid #2a3342;
+            border-radius: 24px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .badge {
+            display: inline-block;
+            background: #1a2332;
+            color: #ffb454;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #3a4557;
+        }
+        h1 {
+            font-size: 18px;
+            font-weight: 500;
+            color: #8b95a5;
+            margin-bottom: 8px;
+        }
+        .score-wrapper { margin: 20px 0 5px; }
+        .score {
+            font-size: 110px;
+            font-weight: 700;
+            line-height: 1;
+            background: linear-gradient(180deg, #ffffff 0%, #a0b0d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .label {
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            margin-bottom: 8px;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+        .change {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .confidence {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+            margin: 8px 0 20px;
+        }
+        .confidence-HIGH { background: #1a4c2a; color: #4fc97a; }
+        .confidence-MEDIUM { background: #4a3e1a; color: #f2c94c; }
+        .confidence-LOW { background: #4a1a1a; color: #f26b6b; }
+        .scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #4a5568;
+            margin: 10px 0 15px;
+            padding: 0 10px;
+        }
+        .scale span:first-child { color: #4fc97a; }
+        .scale span:last-child { color: #f26b6b; }
+        .bar {
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(to right, #4fc97a, #f2c94c, #f26b6b);
+            margin: 0 10px 25px;
+        }
+        .sources-toggle {
+            background: none;
+            border: 1px solid #2a3342;
+            color: #ffb454;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 15px 0 10px;
+            width: 100%;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sources-list {
+            display: none;
+            text-align: left;
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #2a3342;
+        }
+        .sources-list.open { display: block; }
+        .source-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #8b95a5;
+        }
+        .source-item a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .source-item a:hover { text-decoration: underline; }
+        .meta {
+            font-size: 13px;
+            color: #5a6577;
+            border-top: 1px solid #1e2733;
+            padding-top: 20px;
+        }
+        .meta .timestamp {
+            color: #00e5ff;
+            font-weight: 600;
+            text-shadow: 0 0 6px rgba(0,229,255,0.3);
+        }
+        .error, .loading { font-size: 16px; margin: 30px 0; }
+        .error { color: #f26b6b; }
+        .loading { color: #6b7a90; animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; }
+        }
+        a { color: #ffb454; text-decoration: none; font-size: 13px; }
+        a:hover { text-decoration: underline; }
+        @media (max-width: 480px) {
+            .container { padding: 30px 24px; }
+            .score { font-size: 80px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">F‑Tone (FTN)</div>
+        <h1>Federal Reserve Tone Index</h1>
+        <div id="content">
+            <div class="loading" id="loading">Loading…</div>
+            <div id="result" style="display:none;">
+                <div class="score-wrapper">
+                    <div class="score" id="ftnScore">--</div>
+                </div>
+                <div class="label" id="ftnLabel"></div>
+                <div class="change" id="ftnChange"></div>
+                <div class="confidence" id="ftnConfidence"></div>
+                <div class="bar"></div>
+                <div class="scale">
+                    <span>Dovish</span><span>Neutral</span><span>Hawkish</span>
+                </div>
+                <button class="sources-toggle" id="sourcesBtn">
+                    📄 Sources <span id="sourcesCount"></span>
+                    <span style="float:right;">▼</span>
+                </button>
+                <div class="sources-list" id="sourcesList"></div>
+                <div class="meta">
+                    Updated: <span class="timestamp" id="ftnTimestamp"></span> UTC<br>
+                    <a href="https://ftn-index.onrender.com/api/ftn_latest" target="_blank">View raw API</a>
+                </div>
+            </div>
+            <div class="error" id="error" style="display:none;">Unable to load index data. Please try again later.</div>
+        </div>
+    </div>
 
+    <script>
+        const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
+
+        // Helper: interpolate color along green → yellow → red gradient (exactly matching the bar)
+        function getGradientColor(score) {
+            const s = Math.max(0, Math.min(100, score));
+            // Key colors
+            const green = { r: 79,  g: 201, b: 122 };   // #4fc97a
+            const yellow = { r: 242, g: 201, b: 76  };   // #f2c94c
+            const red = { r: 242, g: 107, b: 107 };      // #f26b6b
+
+            let r, g, b;
+            if (s <= 50) {
+                const t = s / 50;
+                r = Math.round(green.r + t * (yellow.r - green.r));
+                g = Math.round(green.g + t * (yellow.g - green.g));
+                b = Math.round(green.b + t * (yellow.b - green.b));
+            } else {
+                const t = (s - 50) / 50;
+                r = Math.round(yellow.r + t * (red.r - yellow.r));
+                g = Math.round(yellow.g + t * (red.g - yellow.g));
+                b = Math.round(yellow.b + t * (red.b - yellow.b));
+            }
+            return `rgb(${r},${g},${b})`;
+        }
+
+        async function fetchFTN() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Network error');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+
+                const score = data.score;
+                document.getElementById('ftnScore').innerText = score;
+
+                // --- Qualitative label (text) ---
+                let labelText = '';
+                if (score <= 20) labelText = 'Extremely Dovish';
+                else if (score <= 40) labelText = 'Dovish';
+                else if (score <= 60) labelText = 'Neutral';
+                else if (score <= 80) labelText = 'Hawkish';
+                else labelText = 'Extremely Hawkish';
+
+                const labelEl = document.getElementById('ftnLabel');
+                labelEl.innerText = labelText;
+
+                // Apply gradient‑based colour to the label
+                labelEl.style.color = getGradientColor(score);
+
+                // Subtle glow for Neutral to improve visibility
+                if (labelText === 'Neutral') {
+                    labelEl.style.textShadow = '0 0 8px rgba(242,201,76,0.7)';
+                } else {
+                    labelEl.style.textShadow = 'none';
+                }
+
+                // --- Change ---
+                const change = data.change || 0;
+                const changeEl = document.getElementById('ftnChange');
+                const arrow = change >= 0 ? '▲' : '▼';
+                changeEl.innerHTML = `${arrow} ${Math.abs(change).toFixed(1)}`;
+                changeEl.style.color = change >= 0 ? '#f26b6b' : '#4fc97a';
+
+                // --- Confidence badge ---
+                const confEl = document.getElementById('ftnConfidence');
+                confEl.innerText = `Confidence: ${data.confidence}`;
+                confEl.className = 'confidence confidence-' + data.confidence;
+
+                // --- Sources ---
+                const sources = data.sources || [];
+                document.getElementById('sourcesCount').innerText = `(${sources.length})`;
+                const listEl = document.getElementById('sourcesList');
+                if (sources.length > 0) {
+                    listEl.innerHTML = sources.map(s =>
+                        `<div class="source-item">
+                            <strong>${s.type.replace('_',' ')}</strong> – 
+                            <a href="${s.url}" target="_blank">${s.title}</a>
+                            <span style="color:#5a6577;"> (${s.chars} chars)</span>
+                        </div>`
+                    ).join('');
+                } else {
+                    listEl.innerHTML = '<div class="source-item">No sources available today.</div>';
+                }
+
+                // --- Timestamp ---
+                const ts = new Date(data.timestamp).toLocaleString('en-US', {
+                    hour:'2-digit', minute:'2-digit', second:'2-digit',
+                    month:'short', day:'numeric', year:'numeric', timeZone:'UTC'
+                });
+                document.getElementById('ftnTimestamp').innerText = ts;
+
+            } catch (err) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                console.error('FTN fetch error:', err);
+            }
+        }
+
+        // Toggle sources panel
+        document.getElementById('sourcesBtn').addEventListener('click', function() {
+            const list = document.getElementById('sourcesList');
+            list.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
+        });
+
+        fetchFTN();
+    </script>
+</body>
+</html>
