@@ -73,11 +73,17 @@
             font-weight: 600;
             padding: 4px 12px;
             border-radius: 12px;
-            margin: 8px 0 20px;
+            margin: 8px 0 10px;
         }
         .confidence-HIGH { background: #1a4c2a; color: #4fc97a; }
         .confidence-MEDIUM { background: #4a3e1a; color: #f2c94c; }
         .confidence-LOW { background: #4a1a1a; color: #f26b6b; }
+        .source-count {
+            font-size: 13px;
+            color: #8b95a5;
+            margin-top: 4px;
+            margin-bottom: 15px;
+        }
         .scale {
             display: flex;
             justify-content: space-between;
@@ -187,6 +193,7 @@
                 <div class="label" id="ftnLabel"></div>
                 <div class="change" id="ftnChange"></div>
                 <div class="confidence" id="ftnConfidence"></div>
+                <div class="source-count" id="ftnSourceCount"></div>
                 <div class="bar"></div>
                 <div class="scale">
                     <span>Dovish</span><span>Neutral</span><span>Hawkish</span>
@@ -207,7 +214,7 @@
                     <br>– <em>Imminence</em>: how soon a change to the federal funds rate is expected.
                     <br>– <em>Sharpness</em>: how large or decisive that change appears.
                     <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.</p>
-                    <p><strong>3. Change arrow:</strong> The ▲ or ▼ shows the daily change in the 7‑day moving average of the raw scores. A ▲ indicates the index became more hawkish compared to the previous day’s smoothed value; a ▼ indicates a dovish shift.</p>
+                    <p><strong>3. Change arrow:</strong> The ▲ or ▼ shows the daily change in the 7‑day moving average of the raw scores. A ▲ indicates the index became more hawkish compared to the previous day’s smoothed value; a ▼ indicates a dovish shift. A — indicates no change.</p>
                     <p><strong>4. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
                 </div>
 
@@ -284,6 +291,7 @@
                     labelEl.style.textShadow = 'none';
                 }
 
+                // ---------- CHANGE (neutral dash for 0.0) ----------
                 const change = data.change || 0;
                 const changeEl = document.getElementById('ftnChange');
                 if (change === 0) {
@@ -295,11 +303,16 @@
                     changeEl.style.color = change > 0 ? '#f26b6b' : '#4fc97a';
                 }
 
+                // ---------- CONFIDENCE ----------
                 const confEl = document.getElementById('ftnConfidence');
                 confEl.innerText = `Confidence: ${data.confidence}`;
                 confEl.className = 'confidence confidence-' + data.confidence;
 
+                // ---------- SOURCE COUNT (visible line) ----------
                 const sources = data.sources || [];
+                document.getElementById('ftnSourceCount').innerText = `Sources: ${sources.length}`;
+
+                // ---------- SOURCES PANEL ----------
                 document.getElementById('sourcesCount').innerText = `(${sources.length})`;
                 const listEl = document.getElementById('sourcesList');
                 if (sources.length > 0) {
@@ -314,6 +327,7 @@
                     listEl.innerHTML = '<div class="source-item">No sources available today.</div>';
                 }
 
+                // ---------- TIMESTAMP ----------
                 const rawTs = data.timestamp || '';
                 const dt = new Date(rawTs);
                 const displayTs = dt.toLocaleString('en-US', {
@@ -329,14 +343,13 @@
             }
         }
 
-        // Toggle Sources
+        // ---------- TOGGLES ----------
         document.getElementById('sourcesBtn').addEventListener('click', function() {
             const list = document.getElementById('sourcesList');
             list.classList.toggle('open');
             this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
         });
 
-        // Toggle Methodology
         document.getElementById('methodologyBtn').addEventListener('click', function() {
             const content = document.getElementById('methodologyContent');
             content.classList.toggle('open');
