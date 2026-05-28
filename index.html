@@ -286,9 +286,14 @@
 
                 const change = data.change || 0;
                 const changeEl = document.getElementById('ftnChange');
-                const arrow = change >= 0 ? '▲' : '▼';
-                changeEl.innerHTML = `${arrow} ${Math.abs(change).toFixed(1)}`;
-                changeEl.style.color = change >= 0 ? '#f26b6b' : '#4fc97a';
+                if (change === 0) {
+                    changeEl.innerHTML = `— ${Math.abs(change).toFixed(1)}`;
+                    changeEl.style.color = '#8b95a5';   // neutral grey
+                } else {
+                    const arrow = change > 0 ? '▲' : '▼';
+                    changeEl.innerHTML = `${arrow} ${Math.abs(change).toFixed(1)}`;
+                    changeEl.style.color = change > 0 ? '#f26b6b' : '#4fc97a';
+                }
 
                 const confEl = document.getElementById('ftnConfidence');
                 confEl.innerText = `Confidence: ${data.confidence}`;
