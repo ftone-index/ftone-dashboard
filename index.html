@@ -223,16 +223,18 @@
                     <p><strong>2. What “hawkish/dovish” means:</strong> The score reflects a combined assessment of two factors:
                     <br>– <em>Imminence</em>: how soon a change to the federal funds rate is expected.
                     <br>– <em>Sharpness</em>: how large or decisive that change appears.
-                    <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.</p>
+                    <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.
+                    <br>If no new Fed communications are available on a given day, the index re‑evaluates the most recent documents, and the source count reflects the number of documents analysed.</p>
                     <p><strong>3. Change arrow:</strong> The ▲ or ▼ shows the daily change in the 7‑day moving average of the raw scores. A ▲ indicates the index became more hawkish compared to the previous day’s smoothed value; a ▼ indicates a dovish shift. A — indicates no change.</p>
                     <p><strong>4. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
+                    <p><strong>5. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
                 </div>
 
                 <div class="meta">
                     Index computation time:
                     <span class="computation-time" id="ftnTimestamp"></span>
                     <span class="utc-label"> UTC</span>
-                    <span class="cached-notice" id="cachedNotice" style="display:none;">cached</span>
+                    <span class="cached-notice" id="cachedNotice" style="display:none;">last reading</span>
                 </div>
                 <div class="legal-link">
                     <a href="legal/terms.html" target="_blank">Terms of Service & Disclaimer</a>
@@ -276,10 +278,9 @@
                 confidence: data.confidence,
                 sourcesCount: data.sources ? data.sources.length : 0,
                 timestamp: data.timestamp,
-                labelText: '',   // computed later
+                labelText: '',
                 savedAt: new Date().toISOString()
             };
-            // compute label text for saved reading
             const s = data.score;
             if (s <= 20) reading.labelText = 'Extremely Dovish';
             else if (s <= 40) reading.labelText = 'Dovish';
@@ -296,7 +297,6 @@
             const score = data.score;
             document.getElementById('ftnScore').innerText = score;
 
-            // Qualitative label
             let labelText = data.labelText || '';
             if (!labelText) {
                 if (score <= 20) labelText = 'Extremely Dovish';
@@ -319,7 +319,6 @@
                 labelEl.style.textShadow = 'none';
             }
 
-            // Change
             const change = parseFloat(data.change) || 0;
             const changeEl = document.getElementById('ftnChange');
             if (change === 0) {
@@ -331,18 +330,15 @@
                 changeEl.style.color = change > 0 ? '#f26b6b' : '#4fc97a';
             }
 
-            // Confidence
             const confEl = document.getElementById('ftnConfidence');
             const confidence = data.confidence || 'MEDIUM';
             confEl.innerText = `Confidence: ${confidence}`;
             confEl.className = 'confidence confidence-' + confidence;
 
-            // Source count
             const sourcesCount = data.sourcesCount || 0;
             document.getElementById('ftnSourceCount').innerText = `Sources: ${sourcesCount}`;
             document.getElementById('sourcesCount').innerText = `(${sourcesCount})`;
 
-            // Sources list (if we have a full sources array)
             if (data.sources && data.sources.length > 0) {
                 const listEl = document.getElementById('sourcesList');
                 listEl.innerHTML = data.sources.map(s =>
@@ -353,11 +349,9 @@
                     </div>`
                 ).join('');
             } else if (isCached) {
-                // Cached reading may not have full source details; just leave the list empty
                 document.getElementById('sourcesList').innerHTML = '<div class="source-item">Source details unavailable for cached reading.</div>';
             }
 
-            // Timestamp
             const ts = data.timestamp || data.savedAt || '';
             const dt = new Date(ts);
             const displayTs = dt.toLocaleString('en-US', {
@@ -366,7 +360,6 @@
             });
             document.getElementById('ftnTimestamp').innerText = displayTs;
 
-            // Cached notice
             const cachedNotice = document.getElementById('cachedNotice');
             if (isCached) {
                 cachedNotice.style.display = 'inline-block';
@@ -382,28 +375,22 @@
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
 
-                // Save to cache
                 saveLastReading(data);
-                // Display live data
                 displayReading(data, false);
 
             } catch (err) {
                 console.error('FTN fetch error:', err);
-                // Try to load cached data
                 const cached = localStorage.getItem(CACHE_KEY);
                 if (cached) {
                     const cachedData = JSON.parse(cached);
-                    // Mark as cached
                     displayReading(cachedData, true);
                 } else {
-                    // No cache, show error
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('error').style.display = 'block';
                 }
             }
         }
 
-        // ---------- TOGGLES ----------
         document.getElementById('sourcesBtn').addEventListener('click', function() {
             const list = document.getElementById('sourcesList');
             list.classList.toggle('open');
