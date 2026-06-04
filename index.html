@@ -237,8 +237,9 @@
                     <br>– <strong>Raw score</strong> (the first number) – the immediate, un‑smoothed average of today's document scores. It reacts instantly to new Fed language.
                     <br>– <strong>Smoothed score</strong> (the second number) – a 7‑day moving average of the raw scores, designed to filter out noise and reveal the trend.
                     <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>smoothed</em> score.</p>
-                    <p><strong>4. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
-                    <p><strong>5. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
+                    <p><strong>4. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>smoothed</em> score. However, if the raw score makes a sharp move (≥ 5 points) in the opposite direction, the label switches to reflect the raw score instead — acting as an early warning of a potential trend change.</p>
+                    <p><strong>5. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
+                    <p><strong>6. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
                 </div>
 
                 <div class="meta">
@@ -313,18 +314,60 @@
             document.getElementById('ftnDualScore').innerHTML =
                 `<span class="raw">${raw.toFixed(1)}</span> <span class="arrow">→</span> ${score.toFixed(1)}`;
 
-            // Qualitative label (based on smoothed score)
-            let labelText = '';
-            if (score <= 20) labelText = 'Extremely Dovish';
-            else if (score <= 40) labelText = 'Dovish';
-            else if (score <= 60) labelText = 'Neutral';
-            else if (score <= 80) labelText = 'Hawkish';
-            else labelText = 'Extremely Hawkish';
+            // ---------- QUALITATIVE LABEL WITH RAW OVERRIDE ----------
+            // Determine smoothed-based label
+            let smoothLabelText = '';
+            if (score <= 20) smoothLabelText = 'Extremely Dovish';
+            else if (score <= 40) smoothLabelText = 'Dovish';
+            else if (score <= 60) smoothLabelText = 'Neutral';
+            else if (score <= 80) smoothLabelText = 'Hawkish';
+            else smoothLabelText = 'Extremely Hawkish';
 
+            // Determine raw-based label
+            let rawLabelText = '';
+            if (raw <= 20) rawLabelText = 'Extremely Dovish';
+            else if (raw <= 40) rawLabelText = 'Dovish';
+            else if (raw <= 60) rawLabelText = 'Neutral';
+            else if (raw <= 80) rawLabelText = 'Hawkish';
+            else rawLabelText = 'Extremely Hawkish';
+
+            // Decide which label to show
+            let labelText = smoothLabelText;
+            let overrideLabel = false;
+
+            // Retrieve previous raw score from cache
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached && !isCached) {   // only override on live data, not when displaying cached fallback
+                try {
+                    const prev = JSON.parse(cached);
+                    if (prev.raw_score !== undefined) {
+                        const prevRaw = parseFloat(prev.raw_score);
+                        if (!isNaN(prevRaw)) {
+                            const diff = raw - prevRaw;   // positive = hawkish shift, negative = dovish shift
+                            // Check if the move is ≥5 points AND the raw label contradicts the smoothed label
+                            if (Math.abs(diff) >= 5) {
+                                // Opposite direction: smoothed is hawkish (score>60) but raw label is dovish (raw≤40), or vice versa
+                                const smoothedIsHawkish = score > 60;
+                                const smoothedIsDovish = score <= 40;
+                                const rawIsHawkish = raw > 60;
+                                const rawIsDovish = raw <= 40;
+
+                                if ((smoothedIsHawkish && rawIsDovish) || (smoothedIsDovish && rawIsHawkish)) {
+                                    labelText = rawLabelText;
+                                    overrideLabel = true;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { /* ignore cache parse errors */ }
+            }
+
+            // Apply label
             const labelEl = document.getElementById('ftnLabel');
             labelEl.innerText = labelText;
-            labelEl.style.color = getGradientColor(score);
+            labelEl.style.color = getGradientColor(overrideLabel ? raw : score);
 
+            // Special styling for Neutral
             if (labelText === 'Neutral') {
                 labelEl.style.fontWeight = '700';
                 labelEl.style.fontSize = '18px';
