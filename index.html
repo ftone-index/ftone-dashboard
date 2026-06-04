@@ -47,7 +47,7 @@
         }
         .score-wrapper { margin: 20px 0 5px; }
         .dual-score {
-            font-size: 90px;
+            font-size: 70px;
             font-weight: 700;
             line-height: 1.1;
             background: linear-gradient(180deg, #ffffff 0%, #a0b0d0 100%);
@@ -56,11 +56,8 @@
             background-clip: text;
             white-space: nowrap;
         }
-        .dual-score .raw {
-            color: #e6e1cf;               /* fallback, though gradient overrides */
-        }
         .dual-score .arrow {
-            font-size: 60px;
+            font-size: 40px;
             color: #6b7a90;
             margin: 0 5px;
             vertical-align: middle;
@@ -196,7 +193,8 @@
         a:hover { text-decoration: underline; }
         @media (max-width: 480px) {
             .container { padding: 30px 24px; }
-            .dual-score { font-size: 60px; }
+            .dual-score { font-size: 50px; }
+            .dual-score .arrow { font-size: 30px; }
         }
     </style>
 </head>
