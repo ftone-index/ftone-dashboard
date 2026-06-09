@@ -1,624 +1,535 @@
-import requests
-from bs4 import BeautifulSoup
-import os
-from flask import Flask, jsonify
-from flask_cors import CORS
-import datetime
-from collections import deque
-import re
-import logging
-import tweepy
-import resend
-
-# ---------- AI PROVIDERS ----------
-from groq import Groq
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-groq_client = None
-if GROQ_API_KEY and GROQ_API_KEY.strip():
-    groq_client = Groq(api_key=GROQ_API_KEY)
-else:
-    logging.warning("GROQ_API_KEY is empty or missing; Groq will be skipped.")
-
-from google import genai
-GEMINI_KEY_1 = os.environ.get("GEMINI_API_KEY_1")
-GEMINI_KEY_2 = os.environ.get("GEMINI_API_KEY_2")
-GEMINI_KEY_3 = os.environ.get("GEMINI_API_KEY_3")
-
-app = Flask(__name__)
-CORS(app)
-logging.basicConfig(level=logging.INFO)
-
-score_history = deque(maxlen=7)
-
-# ---------- MOVING ALERT STATE ----------
-last_alerted_raw_score = None
-
-# ---------- HELPERS ----------
-def fetch_soup(url, timeout=10):
-    r = requests.get(url, timeout=timeout)
-    return BeautifulSoup(r.text, 'html.parser')
-
-def extract_text(soup):
-    for selector in ['article', 'div#content', 'body']:
-        if selector == 'div#content':
-            tag = soup.find('div', id='content')
-        else:
-            tag = soup.select_one(selector)
-        if tag:
-            return tag.get_text()[:4000]
-    return ""
-
-def get_current_year_archive(main_soup, base_url, keyword):
-    current_year = str(datetime.datetime.utcnow().year)
-    for a in main_soup.select('a[href]'):
-        href = a.get('href')
-        if href and keyword in href and current_year in href:
-            full_url = "https://www.federalreserve.gov" + href if href.startswith('/') else href
-            return full_url
-    return base_url
-
-def looks_like_individual_doc(url):
-    if any(kw in url for kw in ['foia', 'rss', '.xml', 'speeches.htm', 'pressreleases.htm', 'fomcminutes.htm']):
-        return False
-    if re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)', url, re.IGNORECASE):
-        return True
-    if re.search(r'\d{8}', url):
-        return True
-    if re.search(r'\d{4,}[a-z]\.htm', url, re.IGNORECASE):
-        return True
-    return False
-
-def extract_speaker_from_url(url):
-    m = re.search(r'/([a-z]+?)\d{8,}a?\.htm', url, re.IGNORECASE)
-    if m:
-        name = m.group(1).capitalize()
-        known = {
-            'Powell': 'Powell', 'Bowman': 'Bowman', 'Jefferson': 'Jefferson',
-            'Waller': 'Waller', 'Warsh': 'Warsh', 'Brainard': 'Brainard',
-            'Clarida': 'Clarida', 'Quarles': 'Quarles', 'Logan': 'Logan',
-            'Mester': 'Mester', 'Williams': 'Williams', 'Bostic': 'Bostic',
-            'Harker': 'Harker', 'Kashkari': 'Kashkari', 'George': 'George',
-            'Bullard': 'Bullard', 'Evans': 'Evans', 'Rosengren': 'Rosengren',
-            'Kaplan': 'Kaplan', 'Daly': 'Daly', 'Barkin': 'Barkin',
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-Tone (FTN) – Federal Reserve Tone Index</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e14;
+            color: #e6e1cf;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
         }
-        return known.get(name, name)
-    return 'Fed'
+        .container {
+            background: #131820;
+            border: 1px solid #2a3342;
+            border-radius: 24px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .badge {
+            display: inline-block;
+            background: #1a2332;
+            color: #ffb454;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #3a4557;
+        }
+        h1 {
+            font-size: 16px;
+            font-weight: 500;
+            color: #8b95a5;
+            text-transform: uppercase;
+            letter-spacing: 0.10em;
+            margin-bottom: 8px;
+        }
+        .score-wrapper { margin: 20px 0 5px; }
+        .dual-score {
+            font-size: 55px;
+            font-weight: 700;
+            line-height: 1.2;
+            background: linear-gradient(180deg, #ffffff 0%, #a0b0d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            white-space: nowrap;
+        }
+        .dual-score .arrow {
+            font-size: 30px;
+            color: #6b7a90;
+            margin: 0 5px;
+            vertical-align: middle;
+        }
+        .label {
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        .change {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .confidence {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 12px;
+            margin: 8px 0 10px;
+        }
+        .confidence-HIGH { background: #1a4c2a; color: #4fc97a; }
+        .confidence-MEDIUM { background: #4a3e1a; color: #f2c94c; }
+        .confidence-LOW { background: #4a1a1a; color: #f26b6b; }
+        .source-count {
+            font-size: 13px;
+            color: #8b95a5;
+            margin-top: 4px;
+            margin-bottom: 15px;
+        }
+        .scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #4a5568;
+            margin: 10px 0 15px;
+            padding: 0 10px;
+        }
+        .scale span:first-child { color: #4fc97a; }
+        .scale span:last-child { color: #f26b6b; }
+        .bar {
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(to right, #4fc97a, #f2c94c, #f26b6b);
+            margin: 0 10px 25px;
+        }
+        .sources-toggle, .methodology-toggle {
+            background: none;
+            border: 1px solid #2a3342;
+            color: #ffb454;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 15px 0 10px;
+            width: 100%;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sources-list, .methodology-content {
+            display: none;
+            text-align: left;
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #2a3342;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #b0bdcf;
+        }
+        .sources-list.open, .methodology-content.open { display: block; }
+        .methodology-content p { margin-bottom: 10px; }
+        .methodology-content strong { color: #f2c94c; }
+        .source-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #8b95a5;
+        }
+        .source-item a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .source-item a:hover { text-decoration: underline; }
 
-# ---------- SOURCE SCRAPERS ----------
-def scrape_fed_speeches():
-    try:
-        main_soup = fetch_soup("https://www.federalreserve.gov/newsevents/speeches.htm")
-        archive_url = get_current_year_archive(main_soup,
-                                               "https://www.federalreserve.gov/newsevents/speeches.htm",
-                                               "-speeches")
-        logging.info(f"Using speech archive: {archive_url}")
-        soup = fetch_soup(archive_url)
-        items = soup.select('a[href*="/speech/"]')
-        sources = []
-        for a in items:
-            if len(sources) >= 3:
-                break
-            href = a.get('href')
-            if href:
-                full_url = "https://www.federalreserve.gov" + href if href.startswith('/') else href
-                if looks_like_individual_doc(full_url):
-                    title = a.get_text(strip=True) or "Speech"
-                    if not any(s['url'] == full_url for s in sources):
-                        sources.append({'type': 'speech', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} speech links")
-        return sources
-    except Exception as e:
-        logging.error(f"Speeches scrape error: {e}")
-        return []
+        /* ---- MARKET EXPECTATION SECTION ---- */
+        .market-divider {
+            border: none;
+            border-top: 1px solid #2a3342;
+            margin: 25px 0 20px;
+        }
+        .market-heading {
+            font-size: 11px;
+            font-weight: 500;
+            color: #6b7a90;
+            text-transform: uppercase;
+            letter-spacing: 0.10em;
+            margin-bottom: 10px;
+        }
+        .market-score {
+            font-size: 55px !important;
+            font-weight: 700 !important;
+            line-height: 1.1 !important;
+            color: #5cc8ff !important;
+            text-shadow: 0 0 18px rgba(92,200,255,0.6) !important;
+        }
+        .market-label {
+            font-size: 17px !important;
+            font-weight: 600 !important;
+            color: #5cc8ff !important;
+            margin-top: 4px !important;
+            text-shadow: 0 0 8px rgba(92,200,255,0.4) !important;
+        }
+        /* ------------------------------------ */
 
-def scrape_fomc_statements():
-    try:
-        main_soup = fetch_soup("https://www.federalreserve.gov/newsevents/pressreleases.htm")
-        archive_url = get_current_year_archive(main_soup,
-                                               "https://www.federalreserve.gov/newsevents/pressreleases.htm",
-                                               "-press")
-        logging.info(f"Using press release archive: {archive_url}")
-        soup = fetch_soup(archive_url)
-        items = soup.select('a[href*="/pressrelease"]')
-        sources = []
-        for a in items:
-            if len(sources) >= 2:
-                break
-            href = a.get('href')
-            if href:
-                full_url = "https://www.federalreserve.gov" + href if href.startswith('/') else href
-                if looks_like_individual_doc(full_url):
-                    title = a.get_text(strip=True) or "FOMC Statement"
-                    if not any(s['url'] == full_url for s in sources):
-                        sources.append({'type': 'fomc_statement', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} FOMC statement links")
-        return sources
-    except Exception as e:
-        logging.error(f"FOMC statements scrape error: {e}")
-        return []
+        .meta {
+            font-size: 13px;
+            color: #c5cdd9;
+            border-top: 1px solid #1e2733;
+            padding-top: 20px;
+            margin-top: 15px;
+        }
+        .meta .computation-time {
+            color: #00e5ff;
+            font-weight: 600;
+            text-shadow: 0 0 6px rgba(0,229,255,0.3);
+        }
+        .meta .utc-label {
+            color: #c5cdd9;
+            font-weight: 500;
+            text-shadow: none;
+        }
+        .cached-notice {
+            display: inline-block;
+            background: #3a3a1a;
+            color: #f2c94c;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 10px;
+            margin-left: 10px;
+        }
+        .legal-link {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .legal-link a {
+            color: #8b95a5;
+            text-decoration: underline;
+        }
+        .error, .loading { font-size: 16px; margin: 30px 0; }
+        .error { color: #f26b6b; }
+        .loading { color: #6b7a90; animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; }
+        }
+        a { color: #ffb454; text-decoration: none; font-size: 13px; }
+        a:hover { text-decoration: underline; }
+        @media (max-width: 480px) {
+            .container { padding: 30px 24px; }
+            .dual-score { font-size: 42px; }
+            .dual-score .arrow { font-size: 24px; }
+            .market-score { font-size: 42px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">F‑Tone (FTN)</div>
+        <h1>Federal Reserve Tone Index</h1>
+        <div id="content">
+            <div class="loading" id="loading">Loading…</div>
+            <div id="result" style="display:none;">
+                <div class="score-wrapper">
+                    <div class="dual-score" id="ftnDualScore"></div>
+                </div>
+                <div class="label" id="ftnLabel"></div>
+                <div class="change" id="ftnChange"></div>
+                <div class="confidence" id="ftnConfidence"></div>
+                <div class="source-count" id="ftnSourceCount"></div>
+                <div class="bar"></div>
+                <div class="scale">
+                    <span>Dovish</span><span>Neutral</span><span>Hawkish</span>
+                </div>
+                <button class="sources-toggle" id="sourcesBtn">
+                    📄 Sources <span id="sourcesCount"></span>
+                    <span style="float:right;">▼</span>
+                </button>
+                <div class="sources-list" id="sourcesList"></div>
 
-def scrape_fomc_minutes():
-    try:
-        main_soup = fetch_soup("https://www.federalreserve.gov/monetarypolicy/fomcminutes.htm")
-        archive_url = get_current_year_archive(main_soup,
-                                               "https://www.federalreserve.gov/monetarypolicy/fomcminutes.htm",
-                                               "fomcminutes")
-        logging.info(f"Using minutes archive: {archive_url}")
-        soup = fetch_soup(archive_url)
-        items = soup.select('a[href*="fomcminutes"]')
-        sources = []
-        for a in items:
-            if len(sources) >= 1:
-                break
-            href = a.get('href')
-            if href:
-                full_url = "https://www.federalreserve.gov" + href if href.startswith('/') else href
-                if looks_like_individual_doc(full_url):
-                    title = a.get_text(strip=True) or "FOMC Minutes"
-                    if not any(s['url'] == full_url for s in sources):
-                        sources.append({'type': 'fomc_minutes', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} FOMC minutes links")
-        return sources
-    except Exception as e:
-        logging.error(f"FOMC minutes scrape error: {e}")
-        return []
+                <!-- Methodology section -->
+                <button class="methodology-toggle" id="methodologyBtn">
+                    📐 Methodology <span style="float:right;">▼</span>
+                </button>
+                <div class="methodology-content" id="methodologyContent">
+                    <p><strong>1. Scale:</strong> The F‑Tone Index ranges from 0 (extremely dovish) to 100 (extremely hawkish). It measures the Federal Reserve’s policy tone as expressed in official speeches, FOMC statements, and minutes, plus regional Fed speeches, testimony, and Fed blog posts.</p>
+                    <p><strong>2. What “hawkish/dovish” means:</strong> The score reflects a combined assessment of two factors:
+                    <br>– <em>Imminence</em>: how soon a change to the federal funds rate is expected.
+                    <br>– <em>Sharpness</em>: how large or decisive that change appears.
+                    <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.
+                    <br>If no new Fed communications are available on a given day, the index re‑evaluates the most recent documents, and the source count reflects the number of documents analysed.</p>
+                    <p><strong>3. Dual display:</strong> The headline shows <strong>raw → smoothed</strong>:
+                    <br>– <strong>Raw score</strong> (the first number) – the immediate, un‑smoothed average of today's document scores. It reacts instantly to new Fed language.
+                    <br>– <strong>Smoothed score</strong> (the second number) – a 7‑day moving average of the raw scores, designed to filter out noise and reveal the trend.
+                    <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>smoothed</em> score.</p>
+                    <p><strong>4. Market expectation:</strong> Below the FTN data, a separate section shows what Treasury markets and the US Dollar Index are collectively pricing about the Fed’s next moves. It is not part of the document‑driven FTN index – it’s a companion indicator for comparison.</p>
+                    <p><strong>5. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>smoothed</em> score. However, if the raw score makes a sharp move (≥ 5 points) in the opposite direction, the label switches to reflect the raw score instead — acting as an early warning of a potential trend change.</p>
+                    <p><strong>6. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
+                    <p><strong>7. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
+                </div>
 
-def scrape_regional_fed_speeches():
-    try:
-        soup = fetch_soup("https://www.newyorkfed.org/newsevents/speeches")
-        items = soup.select('a[href*="speech"]')
-        sources = []
-        for a in items[:2]:
-            href = a.get('href')
-            if href:
-                full_url = "https://www.newyorkfed.org" + href if href.startswith('/') else href
-                title = a.get_text(strip=True) or "Regional Fed Speech"
-                if not any(s['url'] == full_url for s in sources):
-                    sources.append({'type': 'regional_speech', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} regional Fed speech links")
-        return sources
-    except Exception as e:
-        logging.error(f"Regional Fed speeches scrape error: {e}")
-        return []
+                <!-- MARKET EXPECTATION SECTION -->
+                <hr class="market-divider">
+                <div class="market-heading" id="marketHeading" style="display:none;">Market Expectation</div>
+                <div class="market-score" id="marketScore" style="display:none;">--</div>
+                <div class="market-label" id="marketLabel" style="display:none;"></div>
+                <!-- END MARKET EXPECTATION SECTION -->
 
-def scrape_fed_testimony():
-    try:
-        soup = fetch_soup("https://www.federalreserve.gov/newsevents/testimony.htm")
-        items = soup.select('a[href*="testimony"]')
-        sources = []
-        for a in items[:2]:
-            href = a.get('href')
-            if href:
-                full_url = "https://www.federalreserve.gov" + href if href.startswith('/') else href
-                if looks_like_individual_doc(full_url):
-                    title = a.get_text(strip=True) or "Testimony"
-                    if not any(s['url'] == full_url for s in sources):
-                        sources.append({'type': 'testimony', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} testimony links")
-        return sources
-    except Exception as e:
-        logging.error(f"Testimony scrape error: {e}")
-        return []
+                <div class="meta">
+                    Index computation time:
+                    <span class="computation-time" id="ftnTimestamp"></span>
+                    <span class="utc-label"> UTC</span>
+                    <span class="cached-notice" id="cachedNotice" style="display:none;">last reading</span>
+                </div>
+                <div class="legal-link">
+                    <a href="legal/terms.html" target="_blank">Terms of Service & Disclaimer</a>
+                </div>
+                <div class="legal-link" style="margin-top:4px;">
+                    <a href="https://ftn-index.onrender.com/api/ftn_latest" target="_blank">View raw API</a>
+                </div>
+            </div>
+            <div class="error" id="error" style="display:none;">Unable to load index data. Please try again later.</div>
+        </div>
+    </div>
 
-def scrape_fed_blogs():
-    try:
-        soup = fetch_soup("https://libertystreeteconomics.newyorkfed.org/")
-        items = soup.select('a[href*="libertystreeteconomics"]')
-        sources = []
-        for a in items[:2]:
-            href = a.get('href')
-            if href:
-                full_url = href if href.startswith('http') else "https://libertystreeteconomics.newyorkfed.org" + href
-                title = a.get_text(strip=True) or "Fed Blog Post"
-                if not any(s['url'] == full_url for s in sources):
-                    sources.append({'type': 'fed_blog', 'title': title, 'url': full_url})
-        logging.info(f"Scraped {len(sources)} Fed blog links")
-        return sources
-    except Exception as e:
-        logging.error(f"Fed blogs scrape error: {e}")
-        return []
+    <script>
+        const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
+        const MARKET_API_URL = 'https://ftn-index.onrender.com/api/market_ftn';
+        const CACHE_KEY = 'ftn_last_reading';
 
-# ---------- AI SCORING ----------
-def score_text_with_ai(text):
-    if not text:
-        return None
-    prompt = f"""
-You are a Federal Reserve communication analyzer. Rate the following text on a scale from 0 (extremely dovish, suggesting rate cuts/easing) to 100 (extremely hawkish, suggesting rate hikes/tightening). Return ONLY the number, no explanation.
+        function getGradientColor(score) {
+            const s = Math.max(0, Math.min(100, score));
+            const green = { r: 79,  g: 201, b: 122 };
+            const yellow = { r: 242, g: 201, b: 76 };
+            const red = { r: 242, g: 107, b: 107 };
+            let r, g, b;
+            if (s <= 50) {
+                const t = s / 50;
+                r = Math.round(green.r + t * (yellow.r - green.r));
+                g = Math.round(green.g + t * (yellow.g - green.g));
+                b = Math.round(green.b + t * (yellow.b - green.b));
+            } else {
+                const t = (s - 50) / 50;
+                r = Math.round(yellow.r + t * (red.r - yellow.r));
+                g = Math.round(yellow.g + t * (red.g - yellow.g));
+                b = Math.round(yellow.b + t * (red.b - yellow.b));
+            }
+            return `rgb(${r},${g},${b})`;
+        }
 
-Text:
-{text[:3000]}
-"""
-    if groq_client:
-        try:
-            chat_completion = groq_client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model="llama-3.1-8b-instant",
-                temperature=0,
-                max_tokens=5
-            )
-            score_str = chat_completion.choices[0].message.content.strip()
-            digits = re.findall(r'\d+', score_str)
-            if digits:
-                score = int(digits[0])
-                logging.info(f"AI score (Groq): {score}")
-                return max(0, min(100, score))
-        except Exception as e:
-            logging.warning(f"Groq failed ({e}), falling back to Gemini-1...")
-    else:
-        logging.info("Groq key not configured, skipping to Gemini...")
-    if GEMINI_KEY_1:
-        try:
-            gemini_client = genai.Client(api_key=GEMINI_KEY_1)
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"temperature": 0, "max_output_tokens": 5}
-            )
-            score_str = response.text.strip()
-            digits = re.findall(r'\d+', score_str)
-            if digits:
-                score = int(digits[0])
-                logging.info(f"AI score (Gemini-1): {score}")
-                return max(0, min(100, score))
-        except Exception as e:
-            logging.warning(f"Gemini-1 failed ({e}), falling back to Gemini-2...")
-    if GEMINI_KEY_2:
-        try:
-            gemini_client = genai.Client(api_key=GEMINI_KEY_2)
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"temperature": 0, "max_output_tokens": 5}
-            )
-            score_str = response.text.strip()
-            digits = re.findall(r'\d+', score_str)
-            if digits:
-                score = int(digits[0])
-                logging.info(f"AI score (Gemini-2): {score}")
-                return max(0, min(100, score))
-        except Exception as e:
-            logging.warning(f"Gemini-2 failed ({e}), falling back to Gemini-3...")
-    if GEMINI_KEY_3:
-        try:
-            gemini_client = genai.Client(api_key=GEMINI_KEY_3)
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config={"temperature": 0, "max_output_tokens": 5}
-            )
-            score_str = response.text.strip()
-            digits = re.findall(r'\d+', score_str)
-            if digits:
-                score = int(digits[0])
-                logging.info(f"AI score (Gemini-3): {score}")
-                return max(0, min(100, score))
-        except Exception as e:
-            logging.error(f"All AI providers failed: {e}")
-            return None
-    logging.error("No Gemini API keys configured")
-    return None
+        function saveLastReading(data) {
+            const reading = {
+                score: data.score,
+                raw_score: data.raw_score,
+                change: data.change,
+                confidence: data.confidence,
+                sourcesCount: data.sources ? data.sources.length : 0,
+                timestamp: data.timestamp,
+                labelText: '',
+                savedAt: new Date().toISOString()
+            };
+            const s = data.score;
+            if (s <= 20) reading.labelText = 'Extremely Dovish';
+            else if (s <= 40) reading.labelText = 'Dovish';
+            else if (s <= 60) reading.labelText = 'Neutral';
+            else if (s <= 80) reading.labelText = 'Hawkish';
+            else reading.labelText = 'Extremely Hawkish';
+            localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
+        }
 
-# ---------- COMBINED PIPELINE (SMOOTHING FIXED) ----------
-def compute_daily_ftn():
-    all_sources = []
-    all_sources.extend(scrape_fed_speeches())
-    all_sources.extend(scrape_fomc_statements())
-    all_sources.extend(scrape_fomc_minutes())
-    all_sources.extend(scrape_regional_fed_speeches())
-    all_sources.extend(scrape_fed_testimony())
-    all_sources.extend(scrape_fed_blogs())
-    scores = []
-    total_chars = 0
-    sources_detail = []
-    for src in all_sources:
-        try:
-            soup = fetch_soup(src['url'])
-            text = extract_text(soup)
-            if text:
-                score = score_text_with_ai(text)
-                if score is not None:
-                    scores.append(score)
-                    total_chars += len(text)
-                    speaker = extract_speaker_from_url(src['url'])
-                    sources_detail.append({
-                        'type': src['type'],
-                        'title': src['title'],
-                        'url': src['url'],
-                        'chars': len(text),
-                        'speaker': speaker
-                    })
-                    logging.info(f"Scored {src['type']}: {score}")
-        except Exception as e:
-            logging.error(f"Error processing {src['url']}: {e}")
+        async function fetchMarketExpectation() {
+            try {
+                const response = await fetch(MARKET_API_URL);
+                if (!response.ok) throw new Error('Market data unavailable');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
 
-    if not scores:
-        return None, None, []
+                document.getElementById('marketHeading').style.display = 'block';
+                const scoreEl = document.getElementById('marketScore');
+                scoreEl.style.display = 'block';
+                scoreEl.innerText = data.score.toFixed(1);
 
-    # --- Compute today's raw score (before adding to history) ---
-    raw = sum(scores) / len(scores)
+                const labelEl = document.getElementById('marketLabel');
+                labelEl.style.display = 'block';
+                labelEl.innerText = data.label;
+            } catch (err) {
+                console.error('Market expectation fetch error:', err);
+                document.getElementById('marketHeading').style.display = 'none';
+                document.getElementById('marketScore').style.display = 'none';
+                document.getElementById('marketLabel').style.display = 'none';
+            }
+        }
 
-    # --- Smoothed score = average of PAST scores only (excludes today) ---
-    if len(score_history) > 0:
-        smoothed = round(sum(score_history) / len(score_history), 1)
-    else:
-        smoothed = round(raw, 1)   # First day: smoothed = raw
+        function displayReading(data, isCached = false) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
 
-    # --- Now add today's raw to history for FUTURE smoothing ---
-    score_history.append(raw)
+            const score = data.score;
+            const raw = data.raw_score !== undefined ? data.raw_score : score;
 
-    # --- Confidence ---
-    num_sources = len(sources_detail)
-    if num_sources >= 4 and total_chars > 8000:
-        confidence = "HIGH"
-    elif num_sources >= 2 and total_chars > 3000:
-        confidence = "MEDIUM"
-    else:
-        confidence = "LOW"
+            // Dual‑score headline: "73.6 → 71.2"
+            document.getElementById('ftnDualScore').innerHTML =
+                `<span class="raw">${raw.toFixed(1)}</span> <span class="arrow">→</span> ${score.toFixed(1)}`;
 
-    return smoothed, confidence, sources_detail
+            // ---------- QUALITATIVE LABEL WITH RAW OVERRIDE ----------
+            let smoothLabelText = '';
+            if (score <= 20) smoothLabelText = 'Extremely Dovish';
+            else if (score <= 40) smoothLabelText = 'Dovish';
+            else if (score <= 60) smoothLabelText = 'Neutral';
+            else if (score <= 80) smoothLabelText = 'Hawkish';
+            else smoothLabelText = 'Extremely Hawkish';
 
-# ---------- MARKET EXPECTATION ENDPOINT (Solution B, final) ----------
-def compute_market_ftn():
-    """
-    Returns a 0‑100 score representing what the market is pricing in
-    about the Fed's next moves, derived from:
-      - 2‑year Treasury yield (rate hike/cut expectations)
-      - 2y/10y Treasury spread (yield curve)
-      - US Dollar Index (DXY) intraday change
-    """
-    y2 = None
-    y10 = None
-    spread = 0
-    dxy_change = 0
+            let rawLabelText = '';
+            if (raw <= 20) rawLabelText = 'Extremely Dovish';
+            else if (raw <= 40) rawLabelText = 'Dovish';
+            else if (raw <= 60) rawLabelText = 'Neutral';
+            else if (raw <= 80) rawLabelText = 'Hawkish';
+            else rawLabelText = 'Extremely Hawkish';
 
-    fred_api_key = os.environ.get("FRED_API_KEY")
-    if fred_api_key:
-        try:
-            # 2‑year yield
-            resp_2y = requests.get(
-                f"https://api.stlouisfed.org/fred/series/observations?series_id=DGS2&api_key={fred_api_key}&file_type=json&sort_order=desc&limit=1",
-                timeout=15
-            )
-            if resp_2y.status_code == 200:
-                obs = resp_2y.json().get("observations", [])
-                if obs:
-                    y2 = float(obs[0].get("value", 0) or 0)
+            let labelText = smoothLabelText;
+            let overrideLabel = false;
 
-            # 10‑year yield
-            resp_10y = requests.get(
-                f"https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&api_key={fred_api_key}&file_type=json&sort_order=desc&limit=1",
-                timeout=15
-            )
-            if resp_10y.status_code == 200:
-                obs = resp_10y.json().get("observations", [])
-                if obs:
-                    y10 = float(obs[0].get("value", 0) or 0)
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached && !isCached) {
+                try {
+                    const prev = JSON.parse(cached);
+                    if (prev.raw_score !== undefined) {
+                        const prevRaw = parseFloat(prev.raw_score);
+                        if (!isNaN(prevRaw)) {
+                            const diff = raw - prevRaw;
+                            if (Math.abs(diff) >= 5) {
+                                const smoothedIsHawkish = score > 60;
+                                const smoothedIsDovish = score <= 40;
+                                const rawIsHawkish = raw > 60;
+                                const rawIsDovish = raw <= 40;
+                                if ((smoothedIsHawkish && rawIsDovish) || (smoothedIsDovish && rawIsHawkish)) {
+                                    labelText = rawLabelText;
+                                    overrideLabel = true;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
 
-            if y2 is not None and y10 is not None:
-                spread = y10 - y2
-        except Exception as e:
-            logging.warning(f"FRED error: {e}")
+            const labelEl = document.getElementById('ftnLabel');
+            labelEl.innerText = labelText;
+            labelEl.style.color = getGradientColor(overrideLabel ? raw : score);
 
-    # 2‑year yield as rate‑hike expectation
-    # Map a plausible range (3%–6%) to 0–100
-    if y2 is not None and y2 > 0:
-        hike_score = min(100, max(0, (y2 - 3.0) * (100 / 3.0)))
-    else:
-        hike_score = 50   # neutral default
+            if (labelText === 'Neutral') {
+                labelEl.style.fontWeight = '700';
+                labelEl.style.fontSize = '18px';
+                labelEl.style.textShadow = '0 0 18px rgba(242,201,76,1), 0 0 36px rgba(242,201,76,0.8)';
+            } else {
+                labelEl.style.fontWeight = '600';
+                labelEl.style.fontSize = '17px';
+                labelEl.style.textShadow = 'none';
+            }
 
-    # Spread score: -1 to +1 → 0 to 100
-    spread_score = min(100, max(0, 50 + spread * 50))
+            // Change indicator (smoothed)
+            const change = parseFloat(data.change) || 0;
+            const changeEl = document.getElementById('ftnChange');
+            if (change === 0) {
+                changeEl.innerHTML = `— ${Math.abs(change).toFixed(1)}`;
+                changeEl.style.color = '#8b95a5';
+            } else {
+                const arrow = change > 0 ? '▲' : '▼';
+                changeEl.innerHTML = `${arrow} ${Math.abs(change).toFixed(1)}`;
+                changeEl.style.color = change > 0 ? '#f26b6b' : '#4fc97a';
+            }
 
-    # DXY intraday change
-    try:
-        dxy_url = "https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?interval=1d&range=1d"
-        dxy_resp = requests.get(dxy_url, timeout=15)
-        if dxy_resp.status_code == 200:
-            dxy_json = dxy_resp.json()
-            result = dxy_json.get("chart", {}).get("result", [])
-            if result:
-                meta = result[0].get("meta", {})
-                # Try quote indicators first (open/close)
-                indicators = result[0].get("indicators", {}).get("quote", [{}])
-                if indicators and indicators[0]:
-                    opens = indicators[0].get("open", [])
-                    closes = indicators[0].get("close", [])
-                    if opens and closes and opens[0] and closes[0]:
-                        open_val = float(opens[0])
-                        close_val = float(closes[0])
-                        if open_val and close_val:
-                            dxy_change = ((close_val / open_val) - 1) * 100
-                # Fallback to meta previousClose
-                if dxy_change == 0:
-                    prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
-                    current = meta.get("regularMarketPrice")
-                    if prev_close and current:
-                        dxy_change = ((current / prev_close) - 1) * 100
-    except Exception as e:
-        logging.warning(f"DXY error: {e}")
+            // Confidence
+            const confEl = document.getElementById('ftnConfidence');
+            const confidence = data.confidence || 'MEDIUM';
+            confEl.innerText = `Confidence: ${confidence}`;
+            confEl.className = 'confidence confidence-' + confidence;
 
-    # DXY score: -0.5% to +0.5% → 0 to 100
-    dxy_score = min(100, max(0, 50 + dxy_change * 100))
+            // Source count
+            const sources = data.sources || [];
+            document.getElementById('ftnSourceCount').innerText = `Sources: ${sources.length}`;
+            document.getElementById('sourcesCount').innerText = `(${sources.length})`;
 
-    # Average the three components
-    market_ftn = round((hike_score + spread_score + dxy_score) / 3, 1)
+            const listEl = document.getElementById('sourcesList');
+            if (sources.length > 0) {
+                listEl.innerHTML = sources.map(s => {
+                    const speaker = s.speaker ? `<strong>${s.speaker}</strong>, ` : '';
+                    return `<div class="source-item">
+                        ${speaker}<a href="${s.url}" target="_blank">${s.title}</a>
+                        <span style="color:#5a6577;"> (${s.chars} chars)</span>
+                    </div>`;
+                }).join('');
+            } else if (isCached) {
+                listEl.innerHTML = '<div class="source-item">Source details unavailable for cached reading.</div>';
+            }
 
-    # Label
-    if market_ftn <= 20:
-        label = "Extremely Dovish"
-    elif market_ftn <= 40:
-        label = "Dovish"
-    elif market_ftn <= 60:
-        label = "Neutral"
-    elif market_ftn <= 80:
-        label = "Hawkish"
-    else:
-        label = "Extremely Hawkish"
+            // Timestamp
+            const ts = data.timestamp || data.savedAt || '';
+            const dt = new Date(ts);
+            const displayTs = dt.toLocaleString('en-US', {
+                hour:'2-digit', minute:'2-digit', second:'2-digit',
+                month:'short', day:'numeric', year:'numeric', timeZone:'UTC'
+            });
+            document.getElementById('ftnTimestamp').innerText = displayTs;
 
-    return market_ftn, label, {
-        "y2": y2,
-        "spread": spread,
-        "dxy_change": dxy_change,
-        "hike_score": hike_score,
-        "spread_score": spread_score,
-        "dxy_score": dxy_score
-    }
+            const cachedNotice = document.getElementById('cachedNotice');
+            if (isCached) {
+                cachedNotice.style.display = 'inline-block';
+            } else {
+                cachedNotice.style.display = 'none';
+            }
+        }
 
-@app.route('/api/market_ftn')
-def market_ftn():
-    score, label, components = compute_market_ftn()
-    if score is None:
-        return jsonify({"error": "Market data unavailable"}), 500
-    ts = datetime.datetime.utcnow().isoformat() + "Z"
-    return jsonify({
-        "index": "Market Expectation (FTN‑M)",
-        "score": score,
-        "label": label,
-        "components": components,
-        "timestamp": ts
-    })
+        async function fetchFTN() {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Network error');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
 
-# ---------- ROUTES ----------
-@app.route('/health')
-def health():
-    return "OK"
+                saveLastReading(data);
+                displayReading(data, false);
 
-@app.route('/ping')
-def ping():
-    global last_alerted_raw_score
-    score, confidence, sources = compute_daily_ftn()
-    if score is None:
-        return jsonify({"status": "error", "message": "No data"}), 500
-    current_raw = list(score_history)[-1] if score_history else None
-    if current_raw is not None and last_alerted_raw_score is not None:
-        diff = abs(current_raw - last_alerted_raw_score)
-        if diff >= 5:
-            resend_api_key = os.environ.get("RESEND_API_KEY")
-            alert_emails = os.environ.get("ALERT_EMAILS", "")
-            if resend_api_key and alert_emails:
-                resend.api_key = resend_api_key
-                recipients = [e.strip() for e in alert_emails.split(",") if e.strip()]
-                direction = "higher" if current_raw > last_alerted_raw_score else "lower"
-                subject = f"FTN Alert: Index moved {direction} by {diff:.1f} points"
-                body = f"""FTN Index has moved significantly.
+                // Fetch market expectation in parallel
+                fetchMarketExpectation();
 
-Previous raw score: {last_alerted_raw_score:.1f}
-Current raw score:  {current_raw:.1f}
-Change: {direction} by {diff:.1f} points
+            } catch (err) {
+                console.error('FTN fetch error:', err);
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const cachedData = JSON.parse(cached);
+                    displayReading(cachedData, true);
+                    // Still try market expectation
+                    fetchMarketExpectation();
+                } else {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                }
+            }
+        }
 
-Live dashboard: https://ftone-index.github.io/ftone-dashboard/
-Raw API: https://ftn-index.onrender.com/api/ftn_latest
+        document.getElementById('sourcesBtn').addEventListener('click', function() {
+            const list = document.getElementById('sourcesList');
+            list.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
+        });
 
-This is an automated alert. Unsubscribe by replying to this email.
-"""
-                try:
-                    for email in recipients:
-                        resend.Emails.send({
-                            "from": "FTN Alerts <alerts@ftoneindex.com>",
-                            "to": email,
-                            "subject": subject,
-                            "text": body
-                        })
-                    logging.info(f"Alert email sent to {len(recipients)} recipients")
-                except Exception as e:
-                    logging.error(f"Failed to send alert email: {e}")
-            else:
-                logging.warning("RESEND_API_KEY or ALERT_EMAILS not set – alert skipped")
-        last_alerted_raw_score = current_raw
-    elif last_alerted_raw_score is None and current_raw is not None:
-        last_alerted_raw_score = current_raw
-    ts = datetime.datetime.utcnow().isoformat() + "Z"
-    return jsonify({"status": "ok", "score": score, "timestamp": ts})
+        document.getElementById('methodologyBtn').addEventListener('click', function() {
+            const content = document.getElementById('methodologyContent');
+            content.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = content.classList.contains('open') ? '▲' : '▼';
+        });
 
-@app.route('/api/ftn_latest')
-def ftn_latest():
-    score, confidence, sources = compute_daily_ftn()
-    if score is None:
-        return jsonify({"error": "No data available"}), 500
-    prev = list(score_history)
-    change = round(score - prev[-2], 1) if len(prev) > 1 else 0
-    raw_score = prev[-1] if prev else score
-    ts = datetime.datetime.utcnow().isoformat() + "Z"
-    return jsonify({
-        "index": "F-Tone (FTN)",
-        "score": score,
-        "raw_score": raw_score,
-        "change": change,
-        "confidence": confidence,
-        "sources": sources,
-        "timestamp": ts
-    })
-
-@app.route('/')
-def home():
-    return "F-Tone (FTN) Federal Reserve Tone Index is live. Use /api/ftn_latest"
-
-# ---------- X AUTO‑POST ENDPOINT ----------
-def post_to_x():
-    try:
-        score, confidence, sources = compute_daily_ftn()
-        if score is None:
-            return "No score available"
-        prev = list(score_history)
-        change = round(score - prev[-2], 1) if len(prev) > 1 else 0
-        if change == 0:
-            arrow = "—"
-        elif change > 0:
-            arrow = f"▲{abs(change)}"
-        else:
-            arrow = f"▼{abs(change)}"
-        if score <= 20:
-            label = "Extremely Dovish"
-        elif score <= 40:
-            label = "Dovish"
-        elif score <= 60:
-            label = "Neutral"
-        elif score <= 80:
-            label = "Hawkish"
-        else:
-            label = "Extremely Hawkish"
-        sources_count = len(sources) if sources else 0
-        tweet_text = (
-            f"🏛️ FTN today: {score} {arrow} — {label}\n"
-            f"Confidence: {confidence} | Sources: {sources_count}"
-        )
-        client = tweepy.Client(
-            consumer_key=os.environ["X_CONSUMER_KEY"],
-            consumer_secret=os.environ["X_CONSUMER_SECRET"],
-            access_token=os.environ["X_ACCESS_TOKEN"],
-            access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"]
-        )
-        response = client.create_tweet(text=tweet_text)
-        logging.info(f"Tweet posted: {response.data['id']}")
-        return "Tweet posted successfully"
-    except Exception as e:
-        logging.error(f"Auto‑post failed: {e}")
-        return f"Error posting tweet: {e}"
-
-@app.route('/post_tweet')
-def auto_post():
-    result = post_to_x()
-    return jsonify({"status": result})
-
-# ---------- MANUAL MOVING ALERT ENDPOINT (for testing) ----------
-@app.route('/moving')
-def moving_alert():
-    global last_alerted_raw_score
-    _, _, _ = compute_daily_ftn()
-    current_raw = list(score_history)[-1] if score_history else None
-    if current_raw is None:
-        return jsonify({"status": "No data"})
-    if last_alerted_raw_score is None:
-        last_alerted_raw_score = current_raw
-        return jsonify({"status": "Initialized", "current_raw": current_raw})
-    diff = abs(current_raw - last_alerted_raw_score)
-    return jsonify({
-        "status": "checked",
-        "current_raw": current_raw,
-        "last_alerted": last_alerted_raw_score,
-        "diff": diff,
-        "big_move": diff >= 5
-    })
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+        fetchFTN();
+        setInterval(fetchFTN, 600000);
+    </script>
+</body>
+</html>
