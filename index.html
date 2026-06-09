@@ -62,6 +62,18 @@
             margin: 0 5px;
             vertical-align: middle;
         }
+        .market-expectation {
+            font-size: 18px;
+            font-weight: 600;
+            color: #8ba4c7;
+            margin-bottom: 5px;
+            text-shadow: 0 0 8px rgba(139,164,199,0.4);
+        }
+        .market-expectation .label {
+            font-size: 14px;
+            color: #6b7a90;
+            margin-left: 6px;
+        }
         .label {
             font-size: 17px;
             font-weight: 600;
@@ -195,6 +207,7 @@
             .container { padding: 30px 24px; }
             .dual-score { font-size: 42px; }
             .dual-score .arrow { font-size: 24px; }
+            .market-expectation { font-size: 16px; }
         }
     </style>
 </head>
@@ -207,6 +220,7 @@
             <div id="result" style="display:none;">
                 <div class="score-wrapper">
                     <div class="dual-score" id="ftnDualScore"></div>
+                    <div class="market-expectation" id="marketExpectationLine" style="display:none;"></div>
                 </div>
                 <div class="label" id="ftnLabel"></div>
                 <div class="change" id="ftnChange"></div>
@@ -227,7 +241,7 @@
                     📐 Methodology <span style="float:right;">▼</span>
                 </button>
                 <div class="methodology-content" id="methodologyContent">
-                    <p><strong>1. Scale:</strong> The F‑Tone Index ranges from 0 (extremely dovish) to 100 (extremely hawkish). It measures the Federal Reserve’s policy tone as expressed in official speeches, FOMC statements, and minutes.</p>
+                    <p><strong>1. Scale:</strong> The F‑Tone Index ranges from 0 (extremely dovish) to 100 (extremely hawkish). It measures the Federal Reserve’s policy tone as expressed in official speeches, FOMC statements, and minutes, plus regional Fed speeches, testimony, and Fed blog posts.</p>
                     <p><strong>2. What “hawkish/dovish” means:</strong> The score reflects a combined assessment of two factors:
                     <br>– <em>Imminence</em>: how soon a change to the federal funds rate is expected.
                     <br>– <em>Sharpness</em>: how large or decisive that change appears.
@@ -237,9 +251,10 @@
                     <br>– <strong>Raw score</strong> (the first number) – the immediate, un‑smoothed average of today's document scores. It reacts instantly to new Fed language.
                     <br>– <strong>Smoothed score</strong> (the second number) – a 7‑day moving average of the raw scores, designed to filter out noise and reveal the trend.
                     <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>smoothed</em> score.</p>
-                    <p><strong>4. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>smoothed</em> score. However, if the raw score makes a sharp move (≥ 5 points) in the opposite direction, the label switches to reflect the raw score instead — acting as an early warning of a potential trend change.</p>
-                    <p><strong>5. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
-                    <p><strong>6. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
+                    <p><strong>4. Market expectation:</strong> A separate line below the main score shows what Treasury markets, Fed Funds futures, and the US Dollar Index are collectively pricing about the Fed’s next moves. It is not part of the document‑driven FTN index – it’s a companion indicator for comparison.</p>
+                    <p><strong>5. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>smoothed</em> score. However, if the raw score makes a sharp move (≥ 5 points) in the opposite direction, the label switches to reflect the raw score instead — acting as an early warning of a potential trend change.</p>
+                    <p><strong>6. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
+                    <p><strong>7. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
                 </div>
 
                 <div class="meta">
@@ -261,6 +276,7 @@
 
     <script>
         const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
+        const MARKET_API_URL = 'https://ftn-index.onrender.com/api/market_ftn';
         const CACHE_KEY = 'ftn_last_reading';
 
         function getGradientColor(score) {
@@ -303,6 +319,23 @@
             localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
         }
 
+        async function fetchMarketExpectation() {
+            try {
+                const response = await fetch(MARKET_API_URL);
+                if (!response.ok) throw new Error('Market data unavailable');
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                const line = document.getElementById('marketExpectationLine');
+                line.style.display = 'block';
+                line.innerHTML = `${data.score.toFixed(1)} <span class="label">${data.label} (Market expectation)</span>`;
+            } catch (err) {
+                console.error('Market expectation fetch error:', err);
+                // If market data fails, just hide the line – the primary FTN is unaffected
+                document.getElementById('marketExpectationLine').style.display = 'none';
+            }
+        }
+
         function displayReading(data, isCached = false) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('result').style.display = 'block';
@@ -315,7 +348,6 @@
                 `<span class="raw">${raw.toFixed(1)}</span> <span class="arrow">→</span> ${score.toFixed(1)}`;
 
             // ---------- QUALITATIVE LABEL WITH RAW OVERRIDE ----------
-            // Determine smoothed-based label
             let smoothLabelText = '';
             if (score <= 20) smoothLabelText = 'Extremely Dovish';
             else if (score <= 40) smoothLabelText = 'Dovish';
@@ -323,7 +355,6 @@
             else if (score <= 80) smoothLabelText = 'Hawkish';
             else smoothLabelText = 'Extremely Hawkish';
 
-            // Determine raw-based label
             let rawLabelText = '';
             if (raw <= 20) rawLabelText = 'Extremely Dovish';
             else if (raw <= 40) rawLabelText = 'Dovish';
@@ -331,27 +362,22 @@
             else if (raw <= 80) rawLabelText = 'Hawkish';
             else rawLabelText = 'Extremely Hawkish';
 
-            // Decide which label to show
             let labelText = smoothLabelText;
             let overrideLabel = false;
 
-            // Retrieve previous raw score from cache
             const cached = localStorage.getItem(CACHE_KEY);
-            if (cached && !isCached) {   // only override on live data, not when displaying cached fallback
+            if (cached && !isCached) {
                 try {
                     const prev = JSON.parse(cached);
                     if (prev.raw_score !== undefined) {
                         const prevRaw = parseFloat(prev.raw_score);
                         if (!isNaN(prevRaw)) {
-                            const diff = raw - prevRaw;   // positive = hawkish shift, negative = dovish shift
-                            // Check if the move is ≥5 points AND the raw label contradicts the smoothed label
+                            const diff = raw - prevRaw;
                             if (Math.abs(diff) >= 5) {
-                                // Opposite direction: smoothed is hawkish (score>60) but raw label is dovish (raw≤40), or vice versa
                                 const smoothedIsHawkish = score > 60;
                                 const smoothedIsDovish = score <= 40;
                                 const rawIsHawkish = raw > 60;
                                 const rawIsDovish = raw <= 40;
-
                                 if ((smoothedIsHawkish && rawIsDovish) || (smoothedIsDovish && rawIsHawkish)) {
                                     labelText = rawLabelText;
                                     overrideLabel = true;
@@ -359,15 +385,13 @@
                             }
                         }
                     }
-                } catch (e) { /* ignore cache parse errors */ }
+                } catch (e) { /* ignore */ }
             }
 
-            // Apply label
             const labelEl = document.getElementById('ftnLabel');
             labelEl.innerText = labelText;
             labelEl.style.color = getGradientColor(overrideLabel ? raw : score);
 
-            // Special styling for Neutral
             if (labelText === 'Neutral') {
                 labelEl.style.fontWeight = '700';
                 labelEl.style.fontSize = '18px';
@@ -441,12 +465,17 @@
                 saveLastReading(data);
                 displayReading(data, false);
 
+                // Fetch market expectation in parallel
+                fetchMarketExpectation();
+
             } catch (err) {
                 console.error('FTN fetch error:', err);
                 const cached = localStorage.getItem(CACHE_KEY);
                 if (cached) {
                     const cachedData = JSON.parse(cached);
                     displayReading(cachedData, true);
+                    // Still try market expectation
+                    fetchMarketExpectation();
                 } else {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('error').style.display = 'block';
