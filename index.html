@@ -40,9 +40,11 @@
             border: 1px solid #3a4557;
         }
         h1 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 500;
             color: #8b95a5;
+            text-transform: uppercase;
+            letter-spacing: 0.10em;
             margin-bottom: 8px;
         }
         .score-wrapper { margin: 20px 0 5px; }
@@ -155,25 +157,26 @@
             margin: 25px 0 20px;
         }
         .market-heading {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             color: #6b7a90;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.10em;
             margin-bottom: 10px;
         }
         .market-score {
-            font-size: 48px;
+            font-size: 55px;
             font-weight: 700;
             line-height: 1.1;
-            color: #8ba4c7;
-            text-shadow: 0 0 12px rgba(139,164,199,0.3);
+            color: #5cc8ff;
+            text-shadow: 0 0 18px rgba(92,200,255,0.4);
         }
         .market-label {
-            font-size: 16px;
+            font-size: 17px;
             font-weight: 600;
-            color: #6b7a90;
+            color: #5cc8ff;
             margin-top: 4px;
+            text-shadow: 0 0 8px rgba(92,200,255,0.3);
         }
         /* ------------------------------------ */
 
@@ -225,7 +228,7 @@
             .container { padding: 30px 24px; }
             .dual-score { font-size: 42px; }
             .dual-score .arrow { font-size: 24px; }
-            .market-score { font-size: 38px; }
+            .market-score { font-size: 42px; }
         }
     </style>
 </head>
@@ -360,7 +363,6 @@
                 labelEl.innerText = data.label;
             } catch (err) {
                 console.error('Market expectation fetch error:', err);
-                // Keep the section hidden if market data fails
                 document.getElementById('marketHeading').style.display = 'none';
                 document.getElementById('marketScore').style.display = 'none';
                 document.getElementById('marketLabel').style.display = 'none';
