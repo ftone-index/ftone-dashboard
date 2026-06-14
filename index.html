@@ -88,12 +88,6 @@
         .confidence-HIGH { background: #1a4c2a; color: #4fc97a; }
         .confidence-MEDIUM { background: #4a3e1a; color: #f2c94c; }
         .confidence-LOW { background: #4a1a1a; color: #f26b6b; }
-        .source-count {
-            font-size: 13px;
-            color: #8b95a5;
-            margin-top: 4px;
-            margin-bottom: 15px;
-        }
         .scale {
             display: flex;
             justify-content: space-between;
@@ -248,7 +242,6 @@
                 <div class="label" id="ftnLabel"></div>
                 <div class="change" id="ftnChange"></div>
                 <div class="confidence" id="ftnConfidence"></div>
-                <div class="source-count" id="ftnSourceCount"></div>
                 <div class="bar"></div>
                 <div class="scale">
                     <span>Dovish</span><span>Neutral</span><span>Hawkish</span>
@@ -457,9 +450,8 @@
             confEl.innerText = `Confidence: ${confidence}`;
             confEl.className = 'confidence confidence-' + confidence;
 
-            // Source count
+            // Source count (now only in the button)
             const sources = data.sources || [];
-            document.getElementById('ftnSourceCount').innerText = `Sources: ${sources.length}`;
             document.getElementById('sourcesCount').innerText = `(${sources.length})`;
 
             const listEl = document.getElementById('sourcesList');
