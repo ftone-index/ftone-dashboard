@@ -65,6 +65,12 @@
             margin: 0 5px;
             vertical-align: middle;
         }
+        .ftn-formula {
+            font-size: 12px;
+            color: #6b7a90;
+            margin-top: 4px;
+            margin-bottom: 8px;
+        }
         .label {
             font-size: 17px;
             font-weight: 600;
@@ -238,6 +244,7 @@
             <div id="result" style="display:none;">
                 <div class="score-wrapper">
                     <div class="dual-score" id="ftnDualScore"></div>
+                    <div class="ftn-formula" id="ftnFormula"></div>
                 </div>
                 <div class="label" id="ftnLabel"></div>
                 <div class="change" id="ftnChange"></div>
@@ -404,6 +411,10 @@
             // Dual‑score headline: "73.6 → 71.2"
             document.getElementById('ftnDualScore').innerHTML =
                 `<span class="raw">${raw.toFixed(1)}</span> <span class="arrow">→</span> ${score.toFixed(1)}`;
+
+            // FTN formula line
+            document.getElementById('ftnFormula').innerText =
+                'FTN = average(document scores) → smoothed 7‑day moving average';
 
             // ---------- QUALITATIVE LABEL WITH RAW OVERRIDE ----------
             let smoothLabelText = '';
