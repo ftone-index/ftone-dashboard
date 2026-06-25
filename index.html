@@ -58,7 +58,7 @@
         .flip-card-inner {
             position: relative;
             width: 100%;
-            height: 240px;
+            height: 250px;
             transition: transform 0.6s;
             transform-style: preserve-3d;
             cursor: pointer;
@@ -316,7 +316,7 @@
             .dual-score { font-size: 42px; }
             .dual-score .arrow { font-size: 24px; }
             .market-score { font-size: 42px !important; }
-            .flip-card-inner { height: 210px; }
+            .flip-card-inner { height: 230px; }
             .flip-card-back .rate-item { font-size: 13px; width: 90%; }
         }
     </style>
@@ -349,7 +349,10 @@
                             <div class="rate-item"><span>Fed Funds Rate</span><span class="rate-value" id="fedFundsRate">--</span></div>
                             <div class="rate-item"><span>IORB Rate</span><span class="rate-value" id="iorbRate">--</span></div>
                             <div class="rate-item"><span>ON RRP Rate</span><span class="rate-value" id="onrrpRate">--</span></div>
-                            <div class="flip-hint" style="margin-top: 10px;">↻ Click to flip back</div>
+                            <div style="margin-top: 10px; font-size: 11px; color: #5a6577;">
+                                Source: <a href="https://fred.stlouisfed.org/" target="_blank" style="color: #58a6ff; text-decoration: none;">FRED</a> &amp; Federal Reserve
+                            </div>
+                            <div class="flip-hint" style="margin-top: 6px;">↻ Click to flip back</div>
                         </div>
                     </div>
                 </div>
@@ -618,52 +621,43 @@
         // --- Parallel Fetch with Promise.all ---
         async function fetchFTN() {
             try {
-                // Fetch all three endpoints in parallel
                 const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
                     fetch(API_URL),
                     fetch(MARKET_API_URL),
                     fetch(RATES_API_URL)
                 ]);
 
-                // Process FTN data (always required)
                 if (!ftnResponse.ok) throw new Error('FTN API error');
                 const data = await ftnResponse.json();
                 if (data.error) throw new Error(data.error);
 
-                // Process market data (if available)
                 let marketData = null;
                 if (marketResponse.ok) {
                     marketData = await marketResponse.json();
                 }
 
-                // Process rates data (if available)
                 let ratesData = null;
                 if (ratesResponse.ok) {
                     ratesData = await ratesResponse.json();
                 }
 
-                // Save and display FTN data
                 saveLastReading(data);
                 displayReading(data, false);
 
-                // Display market expectation
                 if (marketData && !marketData.error) {
                     displayMarketExpectation(marketData);
                 }
 
-                // Display Fed rates
                 if (ratesData && !ratesData.error) {
                     displayFedRates(ratesData);
                 }
 
             } catch (err) {
                 console.error('FTN fetch error:', err);
-                // Fallback to cached data
                 const cached = localStorage.getItem(CACHE_KEY);
                 if (cached) {
                     const cachedData = JSON.parse(cached);
                     displayReading(cachedData, true);
-                    // Optionally try to fetch market/rates separately (not needed here)
                 } else {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('error').style.display = 'block';
