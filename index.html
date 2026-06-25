@@ -48,7 +48,7 @@
             margin-bottom: 8px;
         }
 
-        /* ===== FLIP CARD ===== */
+        /* FLIP CARD */
         .flip-card {
             background-color: transparent;
             perspective: 1000px;
@@ -57,7 +57,7 @@
         .flip-card-inner {
             position: relative;
             width: 100%;
-            height: 240px;
+            height: 200px;
             transition: transform 0.6s;
             transform-style: preserve-3d;
             cursor: pointer;
@@ -100,13 +100,13 @@
             font-weight: 600;
         }
         .flip-hint {
-            font-size: 11px;
-            color: #5a6577;
+            font-size: 14px;
+            color: #8b95a5;
             margin-top: 8px;
             text-align: center;
+            font-weight: 500;
         }
 
-        /* ===== SCORES ===== */
         .dual-score {
             font-size: 55px;
             font-weight: 700;
@@ -114,10 +114,10 @@
             white-space: nowrap;
         }
         .dual-score .live {
-            color: #FF6B6B;   /* warm red – live score */
+            color: #FF6B6B;
         }
         .dual-score .smoothed {
-            color: #4ECDC4;   /* cool teal – smoothed score */
+            color: #4ECDC4;
         }
         .dual-score .arrow {
             font-size: 30px;
@@ -126,11 +126,10 @@
             vertical-align: middle;
         }
         .ftn-formula {
-            font-size: 14px;
-            color: #8b95a5;
+            font-size: 12px;
+            color: #6b7a90;
             margin-top: 4px;
             margin-bottom: 8px;
-            letter-spacing: 0.03em;
         }
         .label {
             font-size: 17px;
@@ -164,15 +163,14 @@
             padding: 0 10px;
         }
         .scale span:first-child { color: #4fc97a; }
+        .scale span:nth-child(2) { color: #f2c94c; }
         .scale span:last-child { color: #f26b6b; }
         .bar {
             height: 4px;
             border-radius: 2px;
-            background: linear-gradient(to right, #4fc97a, #f2c94c, #f26b6b);
+            background: linear-gradient(to right, #4fc97a 0%, #f2c94c 50%, #f26b6b 100%);
             margin: 0 10px 25px;
         }
-
-        /* ===== TOGGLES ===== */
         .sources-toggle, .methodology-toggle, .market-data-toggle {
             background: none;
             border: 1px solid #2a3342;
@@ -214,7 +212,6 @@
         }
         .source-item a:hover, .market-data-item a:hover { text-decoration: underline; }
 
-        /* ===== MARKET EXPECTATION ===== */
         .market-divider {
             border: none;
             border-top: 1px solid #2a3342;
@@ -292,20 +289,20 @@
             .dual-score { font-size: 42px; }
             .dual-score .arrow { font-size: 24px; }
             .market-score { font-size: 42px !important; }
-            .flip-card-inner { height: 280px; }
+            .flip-card-inner { height: 180px; }
+            .flip-card-back .rate-item { font-size: 13px; width: 90%; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-
         <div class="badge">F‑Tone (FTN)</div>
         <h1>Federal Reserve Tone Index</h1>
         <div id="content">
             <div class="loading" id="loading">Loading…</div>
             <div id="result" style="display:none;">
 
-                <!-- ===== FLIP CARD ===== -->
+                <!-- FLIP CARD -->
                 <div class="flip-card">
                     <div class="flip-card-inner" id="flipCardInner">
                         <!-- Front: FTN Score -->
@@ -316,6 +313,7 @@
                             </div>
                             <div class="label" id="ftnLabel"></div>
                             <div class="change" id="ftnChange"></div>
+                            <div class="confidence" id="ftnConfidence"></div>
                             <div class="flip-hint">↻ Click to see Fed rates</div>
                         </div>
                         <!-- Back: Fed Policy Rates -->
@@ -351,8 +349,8 @@
                     <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.
                     <br>If no new Fed communications are available on a given day, the index re‑evaluates the most recent documents, and the source count reflects the number of documents analysed.</p>
                     <p><strong>3. Dual display:</strong> The headline shows <strong>live → smoothed</strong>:
-                    <br>– <strong>Live score</strong> (the first number) – the immediate, un‑smoothed average of today's document scores. It reacts instantly to new Fed language.
-                    <br>– <strong>Smoothed score</strong> (the second number) – a 7‑day moving average of the raw scores, designed to filter out noise and reveal the trend.
+                    <br>– <strong>Live score</strong> – the immediate, un‑smoothed average of today's document scores. It reacts instantly to new Fed language.
+                    <br>– <strong>Smoothed score</strong> – a 7‑day moving average of the raw scores, designed to filter out noise and reveal the trend.
                     <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>smoothed</em> score.
                     <br>Traders and short‑term decision‑makers may find the raw score more useful; longer‑term investors and analysts may prefer the smoothed trend.</p>
                     <p><strong>4. Market expectation:</strong> Below the FTN data, a separate section shows what Treasury markets and the US Dollar Index are collectively pricing about the Fed’s next moves. It uses the 2‑year Treasury yield (via FRED), the 2y/10y spread (FRED), and the US Dollar Index DXY (via Yahoo Finance). It is not part of the document‑driven FTN index – it’s a companion indicator for comparison.</p>
@@ -390,25 +388,16 @@
     </div>
 
     <script>
-        // ============================================================
-        // FTN DASHBOARD – MAIN LOGIC
-        // ============================================================
-
         const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
         const MARKET_API_URL = 'https://ftn-market.onrender.com/api/market_ftn';
-        const FED_RATES_API = 'https://ftn-market.onrender.com/api/fed_rates';
+        const RATES_API_URL = 'https://ftn-market.onrender.com/api/fed_rates';
         const CACHE_KEY = 'ftn_last_reading';
 
-        // ---- Flip card ----
-        document.getElementById('flipCardInner').addEventListener('click', function() {
-            this.classList.toggle('flipped');
-        });
-
-        // ---- Fetch Fed rates ----
+        // --- Fed Policy Rates ---
         async function fetchFedRates() {
             try {
-                const response = await fetch(FED_RATES_API);
-                if (!response.ok) throw new Error('Fed rates API error');
+                const response = await fetch(RATES_API_URL);
+                if (!response.ok) throw new Error('Failed to fetch rates');
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
                 document.getElementById('fedFundsRate').innerText = data.fed_funds || '--';
@@ -421,9 +410,13 @@
                 document.getElementById('onrrpRate').innerText = 'N/A';
             }
         }
-        // Call after page loads – we'll call it in fetchFTN() after displaying the reading
 
-        // ---- Colors ----
+        // --- Flip Card ---
+        document.getElementById('flipCardInner').addEventListener('click', function() {
+            this.classList.toggle('flipped');
+        });
+
+        // --- Dashboard Functions ---
         function getGradientColor(score) {
             const s = Math.max(0, Math.min(100, score));
             const green = { r: 79,  g: 201, b: 122 };
@@ -464,7 +457,6 @@
             localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
         }
 
-        // ---- Market Expectation ----
         async function fetchMarketExpectation() {
             try {
                 const response = await fetch(MARKET_API_URL);
@@ -487,14 +479,11 @@
                     const y2Display = comp.y2 !== null && comp.y2 !== undefined ? comp.y2.toFixed(2) + '%' : 'N/A';
                     const spreadDisplay = comp.spread !== undefined ? comp.spread.toFixed(2) + '%' : 'N/A';
                     const dxyDisplay = comp.dxy_change !== undefined ? (comp.dxy_change > 0 ? '+' : '') + comp.dxy_change.toFixed(3) + '%' : 'N/A';
-                    const hikeScoreDisplay = comp.hike_score !== undefined ? comp.hike_score.toFixed(1) : 'N/A';
-                    const spreadScoreDisplay = comp.spread_score !== undefined ? comp.spread_score.toFixed(1) : 'N/A';
-                    const dxyScoreDisplay = comp.dxy_score !== undefined ? comp.dxy_score.toFixed(1) : 'N/A';
 
                     listEl.innerHTML = `
-                        <div class="market-data-item"><strong>2‑year Treasury yield:</strong> ${y2Display} <a href="https://fred.stlouisfed.org/series/DGS2" target="_blank">FRED DGS2</a> → hike score: ${hikeScoreDisplay}</div>
-                        <div class="market-data-item"><strong>2y/10y spread:</strong> ${spreadDisplay} <a href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED DGS10</a> → spread score: ${spreadScoreDisplay}</div>
-                        <div class="market-data-item"><strong>DXY intraday change:</strong> ${dxyDisplay} <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">DXY (Yahoo Finance)</a> → DXY score: ${dxyScoreDisplay}</div>
+                        <div class="market-data-item"><strong>2‑year Treasury yield:</strong> ${y2Display} <a href="https://fred.stlouisfed.org/series/DGS2" target="_blank">FRED DGS2</a></div>
+                        <div class="market-data-item"><strong>2y/10y spread:</strong> ${spreadDisplay} <a href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED DGS10</a></div>
+                        <div class="market-data-item"><strong>DXY intraday change:</strong> ${dxyDisplay} <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">DXY (Yahoo Finance)</a></div>
                         <div class="market-data-item" style="margin-top:8px; color:#f2c94c;"><strong>Final Market Expectation = (hike + spread + DXY) / 3</strong></div>
                     `;
                     document.getElementById('marketDataBtn').style.display = 'flex';
@@ -508,7 +497,6 @@
             }
         }
 
-        // ---- Display reading ----
         function displayReading(data, isCached = false) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('result').style.display = 'block';
@@ -516,14 +504,13 @@
             const score = data.score;
             const raw = data.raw_score !== undefined ? data.raw_score : score;
 
-            // Dual score with live and smoothed spans
+            // Dual-score with live + smoothed colors
             document.getElementById('ftnDualScore').innerHTML =
                 `<span class="live">${raw.toFixed(1)}</span> <span class="arrow">→</span> <span class="smoothed">${score.toFixed(1)}</span>`;
 
-            // Legend
             document.getElementById('ftnFormula').innerText = 'live → smoothed';
 
-            // ---------- Qualitative label ----------
+            // Label logic
             let smoothLabelText = '';
             if (score <= 20) smoothLabelText = 'Extremely Dovish';
             else if (score <= 40) smoothLabelText = 'Dovish';
@@ -578,7 +565,7 @@
                 labelEl.style.textShadow = 'none';
             }
 
-            // Change arrow
+            // Change
             const change = parseFloat(data.change) || 0;
             const changeEl = document.getElementById('ftnChange');
             if (change === 0) {
@@ -631,7 +618,6 @@
             }
         }
 
-        // ---- Main fetch ----
         async function fetchFTN() {
             try {
                 const response = await fetch(API_URL);
@@ -642,7 +628,7 @@
                 saveLastReading(data);
                 displayReading(data, false);
                 fetchMarketExpectation();
-                fetchFedRates(); // Fetch Fed policy rates
+                fetchFedRates();
 
             } catch (err) {
                 console.error('FTN fetch error:', err);
@@ -659,7 +645,6 @@
             }
         }
 
-        // ---- Event listeners ----
         document.getElementById('sourcesBtn').addEventListener('click', function() {
             const list = document.getElementById('sourcesList');
             list.classList.toggle('open');
@@ -678,7 +663,6 @@
             this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
         });
 
-        // ---- Start ----
         fetchFTN();
         setInterval(fetchFTN, 600000);
     </script>
