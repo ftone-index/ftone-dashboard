@@ -103,9 +103,12 @@
         .flip-card-back .rate-item:last-child {
             border-bottom: none;
         }
-        .flip-card-back .rate-value {
+        .flip-card-back .rate-value a {
             color: #f2c94c;
-            font-weight: 600;
+            text-decoration: none;
+        }
+        .flip-card-back .rate-value a:hover {
+            text-decoration: underline;
         }
         .flip-card-back h3 {
             color: #ffb454;
@@ -346,9 +349,24 @@
                         <!-- Back: Fed Policy Rates -->
                         <div class="flip-card-back">
                             <h3>Fed Policy Rates</h3>
-                            <div class="rate-item"><span>Fed Funds Rate</span><span class="rate-value" id="fedFundsRate">--</span></div>
-                            <div class="rate-item"><span>IORB Rate</span><span class="rate-value" id="iorbRate">--</span></div>
-                            <div class="rate-item"><span>ON RRP Rate</span><span class="rate-value" id="onrrpRate">--</span></div>
+                            <div class="rate-item">
+                                <span>Fed Funds Rate</span>
+                                <span class="rate-value" id="fedFundsRate">
+                                    <a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank">--</a>
+                                </span>
+                            </div>
+                            <div class="rate-item">
+                                <span>IORB Rate</span>
+                                <span class="rate-value" id="iorbRate">
+                                    <a href="https://fred.stlouisfed.org/series/IORB" target="_blank">--</a>
+                                </span>
+                            </div>
+                            <div class="rate-item">
+                                <span>ON RRP Rate</span>
+                                <span class="rate-value" id="onrrpRate">
+                                    <a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank">--</a>
+                                </span>
+                            </div>
                             <div style="margin-top: 10px; font-size: 11px; color: #5a6577;">
                                 Source: <a href="https://fred.stlouisfed.org/" target="_blank" style="color: #58a6ff; text-decoration: none;">FRED</a> &amp; Federal Reserve
                             </div>
@@ -498,9 +516,13 @@
 
         function displayFedRates(data) {
             if (!data || data.error) return;
-            document.getElementById('fedFundsRate').innerText = data.fed_funds || '--';
-            document.getElementById('iorbRate').innerText = data.iorb || '--';
-            document.getElementById('onrrpRate').innerText = data.onrrp || '--';
+            const fedFundsEl = document.getElementById('fedFundsRate');
+            const iorbEl = document.getElementById('iorbRate');
+            const onrrpEl = document.getElementById('onrrpRate');
+
+            fedFundsEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.fed_funds || '--'}</a>`;
+            iorbEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/IORB" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.iorb || '--'}</a>`;
+            onrrpEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.onrrp || '--'}</a>`;
         }
 
         function displayReading(data, isCached = false) {
