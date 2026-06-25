@@ -420,24 +420,6 @@
         const RATES_API_URL = 'https://ftn-market.onrender.com/api/fed_rates';
         const CACHE_KEY = 'ftn_last_reading';
 
-        // --- Fed Policy Rates ---
-        async function fetchFedRates() {
-            try {
-                const response = await fetch(RATES_API_URL);
-                if (!response.ok) throw new Error('Failed to fetch rates');
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
-                document.getElementById('fedFundsRate').innerText = data.fed_funds || '--';
-                document.getElementById('iorbRate').innerText = data.iorb || '--';
-                document.getElementById('onrrpRate').innerText = data.onrrp || '--';
-            } catch (err) {
-                console.error('Failed to fetch Fed rates:', err);
-                document.getElementById('fedFundsRate').innerText = 'N/A';
-                document.getElementById('iorbRate').innerText = 'N/A';
-                document.getElementById('onrrpRate').innerText = 'N/A';
-            }
-        }
-
         // --- Flip Card ---
         document.getElementById('flipCardInner').addEventListener('click', function() {
             this.classList.toggle('flipped');
@@ -484,44 +466,38 @@
             localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
         }
 
-        async function fetchMarketExpectation() {
-            try {
-                const response = await fetch(MARKET_API_URL);
-                if (!response.ok) throw new Error('Market data unavailable');
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
+        function displayMarketExpectation(data) {
+            if (!data || data.error) return;
+            document.getElementById('marketHeading').style.display = 'block';
+            const scoreEl = document.getElementById('marketScore');
+            scoreEl.style.display = 'block';
+            scoreEl.innerText = data.score.toFixed(1);
+            const labelEl = document.getElementById('marketLabel');
+            labelEl.style.display = 'block';
+            labelEl.innerText = data.label;
 
-                document.getElementById('marketHeading').style.display = 'block';
-                const scoreEl = document.getElementById('marketScore');
-                scoreEl.style.display = 'block';
-                scoreEl.innerText = data.score.toFixed(1);
+            const comp = data.components;
+            if (comp) {
+                const listEl = document.getElementById('marketDataList');
+                const y2Display = comp.y2 !== null && comp.y2 !== undefined ? comp.y2.toFixed(2) + '%' : 'N/A';
+                const spreadDisplay = comp.spread !== undefined ? comp.spread.toFixed(2) + '%' : 'N/A';
+                const dxyDisplay = comp.dxy_change !== undefined ? (comp.dxy_change > 0 ? '+' : '') + comp.dxy_change.toFixed(3) + '%' : 'N/A';
 
-                const labelEl = document.getElementById('marketLabel');
-                labelEl.style.display = 'block';
-                labelEl.innerText = data.label;
-
-                const comp = data.components;
-                if (comp) {
-                    const listEl = document.getElementById('marketDataList');
-                    const y2Display = comp.y2 !== null && comp.y2 !== undefined ? comp.y2.toFixed(2) + '%' : 'N/A';
-                    const spreadDisplay = comp.spread !== undefined ? comp.spread.toFixed(2) + '%' : 'N/A';
-                    const dxyDisplay = comp.dxy_change !== undefined ? (comp.dxy_change > 0 ? '+' : '') + comp.dxy_change.toFixed(3) + '%' : 'N/A';
-
-                    listEl.innerHTML = `
-                        <div class="market-data-item"><strong>2‑year Treasury yield:</strong> ${y2Display} <a href="https://fred.stlouisfed.org/series/DGS2" target="_blank">FRED DGS2</a></div>
-                        <div class="market-data-item"><strong>2y/10y spread:</strong> ${spreadDisplay} <a href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED DGS10</a></div>
-                        <div class="market-data-item"><strong>DXY intraday change:</strong> ${dxyDisplay} <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">DXY (Yahoo Finance)</a></div>
-                        <div class="market-data-item" style="margin-top:8px; color:#f2c94c;"><strong>Final Market Expectation = (hike + spread + DXY) / 3</strong></div>
-                    `;
-                    document.getElementById('marketDataBtn').style.display = 'flex';
-                }
-            } catch (err) {
-                console.error('Market expectation fetch error:', err);
-                document.getElementById('marketHeading').style.display = 'none';
-                document.getElementById('marketScore').style.display = 'none';
-                document.getElementById('marketLabel').style.display = 'none';
-                document.getElementById('marketDataBtn').style.display = 'none';
+                listEl.innerHTML = `
+                    <div class="market-data-item"><strong>2‑year Treasury yield:</strong> ${y2Display} <a href="https://fred.stlouisfed.org/series/DGS2" target="_blank">FRED DGS2</a></div>
+                    <div class="market-data-item"><strong>2y/10y spread:</strong> ${spreadDisplay} <a href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED DGS10</a></div>
+                    <div class="market-data-item"><strong>DXY intraday change:</strong> ${dxyDisplay} <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">DXY (Yahoo Finance)</a></div>
+                    <div class="market-data-item" style="margin-top:8px; color:#f2c94c;"><strong>Final Market Expectation = (hike + spread + DXY) / 3</strong></div>
+                `;
+                document.getElementById('marketDataBtn').style.display = 'flex';
             }
+        }
+
+        function displayFedRates(data) {
+            if (!data || data.error) return;
+            document.getElementById('fedFundsRate').innerText = data.fed_funds || '--';
+            document.getElementById('iorbRate').innerText = data.iorb || '--';
+            document.getElementById('onrrpRate').innerText = data.onrrp || '--';
         }
 
         function displayReading(data, isCached = false) {
@@ -639,26 +615,55 @@
             }
         }
 
+        // --- Parallel Fetch with Promise.all ---
         async function fetchFTN() {
             try {
-                const response = await fetch(API_URL);
-                if (!response.ok) throw new Error('Network error');
-                const data = await response.json();
+                // Fetch all three endpoints in parallel
+                const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
+                    fetch(API_URL),
+                    fetch(MARKET_API_URL),
+                    fetch(RATES_API_URL)
+                ]);
+
+                // Process FTN data (always required)
+                if (!ftnResponse.ok) throw new Error('FTN API error');
+                const data = await ftnResponse.json();
                 if (data.error) throw new Error(data.error);
 
+                // Process market data (if available)
+                let marketData = null;
+                if (marketResponse.ok) {
+                    marketData = await marketResponse.json();
+                }
+
+                // Process rates data (if available)
+                let ratesData = null;
+                if (ratesResponse.ok) {
+                    ratesData = await ratesResponse.json();
+                }
+
+                // Save and display FTN data
                 saveLastReading(data);
                 displayReading(data, false);
-                fetchMarketExpectation();
-                fetchFedRates();
+
+                // Display market expectation
+                if (marketData && !marketData.error) {
+                    displayMarketExpectation(marketData);
+                }
+
+                // Display Fed rates
+                if (ratesData && !ratesData.error) {
+                    displayFedRates(ratesData);
+                }
 
             } catch (err) {
                 console.error('FTN fetch error:', err);
+                // Fallback to cached data
                 const cached = localStorage.getItem(CACHE_KEY);
                 if (cached) {
                     const cachedData = JSON.parse(cached);
                     displayReading(cachedData, true);
-                    fetchMarketExpectation();
-                    fetchFedRates();
+                    // Optionally try to fetch market/rates separately (not needed here)
                 } else {
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('error').style.display = 'block';
@@ -666,6 +671,7 @@
             }
         }
 
+        // --- Event Listeners ---
         document.getElementById('sourcesBtn').addEventListener('click', function() {
             const list = document.getElementById('sourcesList');
             list.classList.toggle('open');
@@ -684,6 +690,7 @@
             this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
         });
 
+        // --- Initial load and refresh ---
         fetchFTN();
         setInterval(fetchFTN, 600000);
     </script>
