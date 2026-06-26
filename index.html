@@ -433,7 +433,9 @@
     </div>
 
     <script>
+        // ---- CONSTANTS ----
         const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
+        const BACKUP_API_URL = 'https://ftn-index.containers.snapdeploy.dev/api/ftn_latest';
         const MARKET_API_URL = 'https://ftn-market.onrender.com/api/market_ftn';
         const RATES_API_URL = 'https://ftn-market.onrender.com/api/fed_rates';
         const CACHE_KEY = 'ftn_last_reading';
@@ -640,7 +642,7 @@
         async function fetchFTN() {
             console.log('fetchFTN started');
 
-            const fetchWithTimeout = (url, timeout = 5000) => {
+            const fetchWithTimeout = (url, timeout = 10000) => {
                 return Promise.race([
                     fetch(url),
                     new Promise((_, reject) =>
@@ -651,8 +653,15 @@
 
             try {
                 console.log('Fetching APIs...');
-                const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
-                    fetchWithTimeout(API_URL).catch(() => null),
+
+                // FTN primary + backup fallback
+                let ftnResponse = await fetchWithTimeout(API_URL).catch(() => null);
+                if (!ftnResponse) {
+                    console.log('Primary FTN API failed, trying backup...');
+                    ftnResponse = await fetchWithTimeout(BACKUP_API_URL).catch(() => null);
+                }
+
+                const [marketResponse, ratesResponse] = await Promise.all([
                     fetchWithTimeout(MARKET_API_URL).catch(() => null),
                     fetchWithTimeout(RATES_API_URL).catch(() => null)
                 ]);
