@@ -638,7 +638,8 @@
         }
 
         async function fetchFTN() {
-            // Helper: fetch with timeout
+            console.log('fetchFTN started');
+
             const fetchWithTimeout = (url, timeout = 5000) => {
                 return Promise.race([
                     fetch(url),
@@ -649,18 +650,25 @@
             };
 
             try {
-                // Fetch all three endpoints in parallel
+                console.log('Fetching APIs...');
                 const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
                     fetchWithTimeout(API_URL).catch(() => null),
                     fetchWithTimeout(MARKET_API_URL).catch(() => null),
                     fetchWithTimeout(RATES_API_URL).catch(() => null)
                 ]);
 
+                console.log('API responses received');
+                console.log('FTN response:', ftnResponse);
+                console.log('Market response:', marketResponse);
+                console.log('Rates response:', ratesResponse);
+
                 // Process FTN data (always required)
                 let data = null;
                 if (ftnResponse && ftnResponse.ok) {
+                    console.log('FTN response OK, parsing JSON...');
                     try {
                         data = await ftnResponse.json();
+                        console.log('FTN data parsed:', data);
                         if (data && !data.error) {
                             saveLastReading(data);
                             displayReading(data, false);
@@ -668,27 +676,36 @@
                     } catch (e) {
                         console.warn('FTN data parse error:', e);
                     }
+                } else {
+                    console.warn('FTN response not OK:', ftnResponse);
                 }
 
                 // If FTN data failed, try cached data
                 if (!data) {
+                    console.log('No FTN data, checking cache...');
                     const cached = localStorage.getItem(CACHE_KEY);
+                    console.log('Cached data:', cached);
                     if (cached) {
                         try {
                             const cachedData = JSON.parse(cached);
+                            console.log('Cached data parsed:', cachedData);
                             const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
                             const maxAge = 30 * 60 * 1000; // 30 minutes
+                            console.log('Cached age (ms):', cachedAge, 'Max age:', maxAge);
 
                             if (cachedAge < maxAge) {
+                                console.log('Cache is fresh, displaying cached data');
                                 displayReading(cachedData, true);
                             } else {
+                                console.log('Cache is too old, showing error');
                                 document.getElementById('loading').style.display = 'none';
                                 document.getElementById('error').style.display = 'block';
                             }
                         } catch (e) {
-                            /* ignore */
+                            console.warn('Cache parse error:', e);
                         }
                     } else {
+                        console.log('No cached data found');
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('error').style.display = 'block';
                     }
@@ -697,6 +714,7 @@
 
                 // Process Market Expectation (if available)
                 if (marketResponse && marketResponse.ok) {
+                    console.log('Market response OK, parsing...');
                     try {
                         const marketData = await marketResponse.json();
                         if (marketData && !marketData.error) {
@@ -711,6 +729,7 @@
 
                 // Process Fed Rates (if available)
                 if (ratesResponse && ratesResponse.ok) {
+                    console.log('Rates response OK, parsing...');
                     try {
                         const ratesData = await ratesResponse.json();
                         if (ratesData && !ratesData.error) {
@@ -723,15 +742,16 @@
                     console.warn('Rates API not available');
                 }
 
+                console.log('fetchFTN completed successfully');
+
             } catch (err) {
-                console.error('FTN fetch error:', err);
+                console.error('fetchFTN error:', err);
                 const cached = localStorage.getItem(CACHE_KEY);
                 if (cached) {
                     try {
                         const cachedData = JSON.parse(cached);
                         const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
                         const maxAge = 30 * 60 * 1000; // 30 minutes
-
                         if (cachedAge < maxAge) {
                             displayReading(cachedData, true);
                         } else {
