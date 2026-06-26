@@ -638,12 +638,22 @@
         }
 
         async function fetchFTN() {
+            // Helper: fetch with timeout
+            const fetchWithTimeout = (url, timeout = 5000) => {
+                return Promise.race([
+                    fetch(url),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Request timed out')), timeout)
+                    )
+                ]);
+            };
+
             try {
-                // Fetch all three endpoints in parallel
+                // Fetch all three endpoints in parallel with a 5-second timeout
                 const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
-                    fetch(API_URL).catch(() => null),
-                    fetch(MARKET_API_URL).catch(() => null),
-                    fetch(RATES_API_URL).catch(() => null)
+                    fetchWithTimeout(API_URL).catch(() => null),
+                    fetchWithTimeout(MARKET_API_URL).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL).catch(() => null)
                 ]);
 
                 // Process FTN data (always required)
