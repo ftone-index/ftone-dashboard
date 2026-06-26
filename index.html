@@ -637,7 +637,6 @@
             }
         }
 
-        // --- Parallel Fetch with Robust Error Handling ---
         async function fetchFTN() {
             try {
                 // Fetch all three endpoints in parallel
@@ -667,15 +666,77 @@
                     if (cached) {
                         try {
                             const cachedData = JSON.parse(cached);
-                            displayReading(cachedData, true);
-                        } catch (e) { /* ignore */ }
+                            const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
+                            const maxAge = 30 * 60 * 1000; // 30 minutes
+
+                            if (cachedAge < maxAge) {
+                                displayReading(cachedData, true);
+                            } else {
+                                document.getElementById('loading').style.display = 'none';
+                                document.getElementById('error').style.display = 'block';
+                            }
+                        } catch (e) {
+                            /* ignore */
+                        }
                     } else {
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('error').style.display = 'block';
-                        return;
                     }
+                    return;
                 }
 
+                // Process Market Expectation (if available)
+                if (marketResponse && marketResponse.ok) {
+                    try {
+                        const marketData = await marketResponse.json();
+                        if (marketData && !marketData.error) {
+                            displayMarketExpectation(marketData);
+                        }
+                    } catch (e) {
+                        console.warn('Market data error:', e);
+                    }
+                } else {
+                    console.warn('Market API not available');
+                }
+
+                // Process Fed Rates (if available)
+                if (ratesResponse && ratesResponse.ok) {
+                    try {
+                        const ratesData = await ratesResponse.json();
+                        if (ratesData && !ratesData.error) {
+                            displayFedRates(ratesData);
+                        }
+                    } catch (e) {
+                        console.warn('Rates data error:', e);
+                    }
+                } else {
+                    console.warn('Rates API not available');
+                }
+
+            } catch (err) {
+                console.error('FTN fetch error:', err);
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    try {
+                        const cachedData = JSON.parse(cached);
+                        const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
+                        const maxAge = 30 * 60 * 1000; // 30 minutes
+
+                        if (cachedAge < maxAge) {
+                            displayReading(cachedData, true);
+                        } else {
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('error').style.display = 'block';
+                        }
+                    } catch (e) {
+                        /* ignore */
+                    }
+                } else {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                }
+            }
+        }
                 // Process Market Expectation (if available)
                 if (marketResponse && marketResponse.ok) {
                     try {
