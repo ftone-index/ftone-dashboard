@@ -767,48 +767,7 @@
                 }
             }
         }
-                // Process Market Expectation (if available)
-                if (marketResponse && marketResponse.ok) {
-                    try {
-                        const marketData = await marketResponse.json();
-                        if (marketData && !marketData.error) {
-                            displayMarketExpectation(marketData);
-                        }
-                    } catch (e) {
-                        console.warn('Market data error:', e);
-                    }
-                } else {
-                    console.warn('Market API not available');
-                }
 
-                // Process Fed Rates (if available)
-                if (ratesResponse && ratesResponse.ok) {
-                    try {
-                        const ratesData = await ratesResponse.json();
-                        if (ratesData && !ratesData.error) {
-                            displayFedRates(ratesData);
-                        }
-                    } catch (e) {
-                        console.warn('Rates data error:', e);
-                    }
-                } else {
-                    console.warn('Rates API not available');
-                }
-
-            } catch (err) {
-                console.error('FTN fetch error:', err);
-                const cached = localStorage.getItem(CACHE_KEY);
-                if (cached) {
-                    try {
-                        const cachedData = JSON.parse(cached);
-                        displayReading(cachedData, true);
-                    } catch (e) { /* ignore */ }
-                } else {
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('error').style.display = 'block';
-                }
-            }
-        }
         // --- Event Listeners ---
         document.getElementById('sourcesBtn').addEventListener('click', function() {
             const list = document.getElementById('sourcesList');
