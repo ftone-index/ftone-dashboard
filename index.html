@@ -649,7 +649,7 @@
             };
 
             try {
-                // Fetch all three endpoints in parallel with a 5-second timeout
+                // Fetch all three endpoints in parallel
                 const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
                     fetchWithTimeout(API_URL).catch(() => null),
                     fetchWithTimeout(MARKET_API_URL).catch(() => null),
