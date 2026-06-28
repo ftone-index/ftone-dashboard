@@ -727,8 +727,8 @@
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
-                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
-                    fetchWithTimeout(RATES_API_URL, 20000).catch(() => null)
+                    fetchWithTimeout(MARKET_API_URL, 40000).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL, 40000).catch(() => null)
                 ]);
 
                 console.log('API responses received');
