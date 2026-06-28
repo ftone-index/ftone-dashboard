@@ -444,6 +444,52 @@
         const MARKET_API_URL = 'https://ftn-market.onrender.com/api/market_ftn';
         const RATES_API_URL = 'https://ftn-market.onrender.com/api/fed_rates';
         const CACHE_KEY = 'ftn_last_reading';
+        const TRIAL_API_URL = 'https://ftn-index.onrender.com/api/validate_trial';
+        const SUBSCRIPTION_URL = 'https://ftoneindex.com/subscribe';
+
+        // --- TRIAL KEY VALIDATION (Option B) ---
+        let trialStatus = null;
+
+        async function validateTrialKey() {
+            // Check for key in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const key = urlParams.get('key');
+
+            if (!key) {
+                return { valid: false, reason: 'No key provided' };
+            }
+
+            try {
+                const response = await fetch(`${TRIAL_API_URL}?key=${encodeURIComponent(key)}`);
+                const data = await response.json();
+
+                if (data.valid) {
+                    // Trial is active — remove the key from the URL to keep it clean
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, newUrl);
+                    return { valid: true };
+                } else {
+                    return { valid: false, reason: data.reason || 'Invalid key' };
+                }
+            } catch (error) {
+                console.error('Trial validation error:', error);
+                return { valid: false, reason: 'Validation service unavailable' };
+            }
+        }
+
+        async function initTrial() {
+            trialStatus = await validateTrialKey();
+            // If invalid, show a banner
+            if (!trialStatus.valid) {
+                const resultContainer = document.getElementById('result');
+                if (resultContainer) {
+                    const banner = document.createElement('div');
+                    banner.style.cssText = 'background: #1a2332; color: #ffb454; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; border: 1px solid #3a4557;';
+                    banner.innerHTML = '🔓 <strong>Free version</strong> — <a href="' + SUBSCRIPTION_URL + '" style="color: #58a6ff;">Subscribe</a> to unlock API access, historical data, alerts, and early access.';
+                    resultContainer.prepend(banner);
+                }
+            }
+        }
 
         // --- Flip Card ---
         document.getElementById('flipCardInner').addEventListener('click', function() {
@@ -650,6 +696,11 @@
         }
 
         async function fetchFTN() {
+            // Ensure trial validation is complete
+            if (trialStatus === null) {
+                await initTrial();
+            }
+
             console.log('fetchFTN started');
 
             const fetchWithTimeout = (url, timeout = 20000) => {
