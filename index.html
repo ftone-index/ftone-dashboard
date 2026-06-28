@@ -490,8 +490,13 @@
         }
 
         function displayMarketExpectation(data) {
-            if (!data || data.error) return;
+            if (!data || data.error) {
+                document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
+                document.getElementById('marketHeading').style.display = 'block';
+                return;
+            }
             document.getElementById('marketHeading').style.display = 'block';
+            document.getElementById('marketHeading').innerText = 'Market Expectation';
             const scoreEl = document.getElementById('marketScore');
             scoreEl.style.display = 'block';
             scoreEl.innerText = data.score.toFixed(1);
