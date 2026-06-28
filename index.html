@@ -650,7 +650,7 @@
         async function fetchFTN() {
             console.log('fetchFTN started');
 
-            const fetchWithTimeout = (url, timeout = 20000) => {
+            const fetchWithTimeout = (url, timeout = 15000) => {
                 return Promise.race([
                     fetch(url),
                     new Promise((_, reject) =>
@@ -662,6 +662,16 @@
             try {
                 console.log('Fetching APIs...');
 
+                // Show loading hint immediately
+                document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
+                document.getElementById('marketHeading').style.display = 'block';
+
+                const [ftnResponse, marketResponse, ratesResponse] = await Promise.all([
+                    fetchWithTimeout(API_URL, 20000).catch(() => null),
+                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL, 20000).catch(() => null)
+                ]);
+
                 // FTN primary + backup fallback
                 let ftnResponse = await fetchWithTimeout(API_URL).catch(() => null);
                 if (!ftnResponse) {
@@ -670,7 +680,7 @@
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
-                    fetchWithTimeout(MARKET_API_URL).catch(() => null),
+                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
                     fetchWithTimeout(RATES_API_URL).catch(() => null)
                 ]);
 
