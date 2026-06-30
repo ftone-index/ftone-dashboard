@@ -130,6 +130,7 @@
             font-weight: 800;
             line-height: 1.1;
             white-space: nowrap;
+            position: relative;
         }
         .dual-score .live {
             color: #8E44AD;
@@ -151,6 +152,22 @@
             margin-top: 2px;
             margin-bottom: 6px;
             letter-spacing: 0.04em;
+        }
+
+        /* -------- ALERT INDICATOR -------- */
+        .alert-indicator {
+            display: inline-block;
+            color: #ff6b6b;
+            font-weight: 700;
+            margin-left: 8px;
+            animation: pulse 1.5s infinite;
+            font-size: 18px;
+            vertical-align: middle;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
         }
 
         /* -------- LABEL, CHANGE, CONFIDENCE -------- */
@@ -403,7 +420,7 @@
                     <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>7d avg</em>.
                     <br>Traders and short‑term decision‑makers may find the raw score more useful; longer‑term investors and analysts may prefer the smoothed trend.</p>
                     <p><strong>5. Market expectation:</strong> Below the FTN data, a separate section shows what Treasury markets and the US Dollar Index are collectively pricing about the Fed’s next moves. It uses the 2‑year Treasury yield (via FRED), the 2y/10y spread (FRED), and the US Dollar Index DXY (via Yahoo Finance). It is not part of the document‑driven FTN index – it’s a companion indicator for comparison.</p>
-                    <p><strong>6. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>7d avg</em>. However, if the raw score makes a sharp move (≥ 5 points) in the opposite direction, the label switches to reflect the raw score instead — acting as an early warning of a potential trend change.</p>
+                    <p><strong>6. Qualitative label:</strong> The “Hawkish” / “Dovish” label normally follows the <em>7d avg</em>. However, if the live score makes a sharp move (≥ 5 points) in the opposite direction, a persistent alert is shown on the dashboard for up to 24 hours — as an early warning of a potential trend change.</p>
                     <p><strong>7. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
                     <p><strong>8. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
 
@@ -451,7 +468,6 @@
         let trialStatus = null;
 
         async function validateTrialKey() {
-            // Check for key in URL
             const urlParams = new URLSearchParams(window.location.search);
             const key = urlParams.get('key');
 
@@ -464,7 +480,6 @@
                 const data = await response.json();
 
                 if (data.valid) {
-                    // Trial is active — remove the key from the URL to keep it clean
                     const newUrl = window.location.pathname;
                     window.history.replaceState({}, document.title, newUrl);
                     return { valid: true };
@@ -479,13 +494,12 @@
 
         async function initTrial() {
             trialStatus = await validateTrialKey();
-            // If invalid, show a banner
             if (!trialStatus.valid) {
                 const resultContainer = document.getElementById('result');
                 if (resultContainer) {
                     const banner = document.createElement('div');
                     banner.style.cssText = 'background: #1a2332; color: #ffb454; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; border: 1px solid #3a4557;';
-                    banner.innerHTML = '🔓 <strong>Free version</strong> — <a href="' + SUBSCRIPTION_URL + '" style="color: #58a6ff;">Subscribe</a> to unlock API access, historical data, alerts, and early access.';
+                    banner.innerHTML = '🔓 <strong>Free version</strong> — <a href="' + SUBSCRIPTION_URL + '" style="color: #58a6ff;">Subscribe</a> for API access, historical data, alerts, and a 60‑day free trial.';
                     resultContainer.prepend(banner);
                 }
             }
@@ -580,6 +594,77 @@
             onrrpEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.onrrp || '--'} ↗</a>`;
         }
 
+        // --- Divergence Alert Logic ---
+        function updateDivergenceAlert(raw, smoothed, prevRaw, prevSmoothed) {
+            const ALERT_KEY = 'ftn_alert';
+            const ALERT_DIVERGENCE_KEY = 'ftn_alert_divergence';
+            const ALERT_TIMESTAMP_KEY = 'ftn_alert_timestamp';
+            const now = Date.now();
+            const threshold = 5;
+
+            // Current divergence: raw - smoothed
+            const currentDivergence = raw - smoothed;
+            const absCurrentDivergence = Math.abs(currentDivergence);
+
+            // Get stored alert data
+            const storedAlert = localStorage.getItem(ALERT_KEY);
+            const storedDivergence = parseFloat(localStorage.getItem(ALERT_DIVERGENCE_KEY));
+            const storedTimestamp = parseInt(localStorage.getItem(ALERT_TIMESTAMP_KEY));
+
+            // Check if there is a significant move in the opposite direction
+            // We compare current raw vs previous smoothed (from cache) to detect a 5+ point move away from the smoothed trend.
+            // If we don't have previous data, we use a simpler check: abs(currentDivergence) >= 5 and raw is on the opposite side of smoothed?
+            // But we need to detect the move, not just the absolute divergence.
+            // Better: use the cache to get the previous smoothed.
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                try {
+                    const prevData = JSON.parse(cached);
+                    const prevSmoothed = prevData.score;
+                    const prevRaw = prevData.raw_score;
+                    // Check if raw moved 5+ points away from smoothed (in either direction)
+                    const smoothedTrend = smoothed - prevSmoothed;
+                    const rawMove = raw - prevRaw;
+                    // If raw moves in the opposite direction of the smoothed trend by >=5 points
+                    if (Math.abs(rawMove) >= threshold && (rawMove * smoothedTrend < 0)) {
+                        // This is a valid trigger: raw has moved 5+ points opposite to the smoothed trend.
+                        // Store the divergence at this moment.
+                        localStorage.setItem(ALERT_KEY, 'true');
+                        localStorage.setItem(ALERT_DIVERGENCE_KEY, currentDivergence.toString());
+                        localStorage.setItem(ALERT_TIMESTAMP_KEY, now.toString());
+                        return true;
+                    }
+                } catch (e) {
+                    // Ignore cache errors
+                }
+            }
+
+            // If we have a stored alert, check if it's still valid
+            if (storedAlert && storedDivergence !== undefined && storedTimestamp) {
+                // Check if 24 hours have passed
+                if (now - storedTimestamp > 24 * 60 * 60 * 1000) {
+                    // Expired
+                    localStorage.removeItem(ALERT_KEY);
+                    localStorage.removeItem(ALERT_DIVERGENCE_KEY);
+                    localStorage.removeItem(ALERT_TIMESTAMP_KEY);
+                    return false;
+                }
+                // Check if the current divergence has shrunk below the stored divergence
+                // We compare the absolute values: if the gap has shrunk, clear the alert.
+                if (absCurrentDivergence < Math.abs(storedDivergence)) {
+                    // Gap has shrunk — clear the alert
+                    localStorage.removeItem(ALERT_KEY);
+                    localStorage.removeItem(ALERT_DIVERGENCE_KEY);
+                    localStorage.removeItem(ALERT_TIMESTAMP_KEY);
+                    return false;
+                }
+                // Alert is still valid
+                return true;
+            }
+
+            return false;
+        }
+
         function displayReading(data, isCached = false) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('result').style.display = 'block';
@@ -587,54 +672,29 @@
             const score = data.score;
             const raw = data.raw_score !== undefined ? data.raw_score : score;
 
-            document.getElementById('ftnDualScore').innerHTML =
-                `<span class="live">${raw.toFixed(1)}</span> <span class="arrow">→</span> <span class="smoothed">${score.toFixed(1)}</span>`;
+            // --- Divergence Alert ---
+            const alertActive = updateDivergenceAlert(raw, score);
+
+            // Build dual-score display with alert indicator if active
+            let dualScoreHTML = `<span class="live">${raw.toFixed(1)}</span> <span class="arrow">→</span> <span class="smoothed">${score.toFixed(1)}</span>`;
+            if (alertActive) {
+                dualScoreHTML += ' <span class="alert-indicator">⚠️</span>';
+            }
+            document.getElementById('ftnDualScore').innerHTML = dualScoreHTML;
 
             document.getElementById('ftnFormula').innerText = 'live → 7d avg';
 
-            let smoothLabelText = '';
-            if (score <= 20) smoothLabelText = 'Extremely Dovish';
-            else if (score <= 40) smoothLabelText = 'Dovish';
-            else if (score <= 60) smoothLabelText = 'Neutral';
-            else if (score <= 80) smoothLabelText = 'Hawkish';
-            else smoothLabelText = 'Extremely Hawkish';
-
-            let rawLabelText = '';
-            if (raw <= 20) rawLabelText = 'Extremely Dovish';
-            else if (raw <= 40) rawLabelText = 'Dovish';
-            else if (raw <= 60) rawLabelText = 'Neutral';
-            else if (raw <= 80) rawLabelText = 'Hawkish';
-            else rawLabelText = 'Extremely Hawkish';
-
-            let labelText = smoothLabelText;
-            let overrideLabel = false;
-
-            const cached = localStorage.getItem(CACHE_KEY);
-            if (cached && !isCached) {
-                try {
-                    const prev = JSON.parse(cached);
-                    if (prev.raw_score !== undefined) {
-                        const prevRaw = parseFloat(prev.raw_score);
-                        if (!isNaN(prevRaw)) {
-                            const diff = raw - prevRaw;
-                            if (Math.abs(diff) >= 5) {
-                                const smoothedIsHawkish = score > 60;
-                                const smoothedIsDovish = score <= 40;
-                                const rawIsHawkish = raw > 60;
-                                const rawIsDovish = raw <= 40;
-                                if ((smoothedIsHawkish && rawIsDovish) || (smoothedIsDovish && rawIsHawkish)) {
-                                    labelText = rawLabelText;
-                                    overrideLabel = true;
-                                }
-                            }
-                        }
-                    }
-                } catch (e) { /* ignore */ }
-            }
+            // Label follows smoothed score (no override)
+            let labelText = '';
+            if (score <= 20) labelText = 'Extremely Dovish';
+            else if (score <= 40) labelText = 'Dovish';
+            else if (score <= 60) labelText = 'Neutral';
+            else if (score <= 80) labelText = 'Hawkish';
+            else labelText = 'Extremely Hawkish';
 
             const labelEl = document.getElementById('ftnLabel');
             labelEl.innerText = labelText;
-            labelEl.style.color = getGradientColor(overrideLabel ? raw : score);
+            labelEl.style.color = getGradientColor(score);
 
             if (labelText === 'Neutral') {
                 labelEl.style.fontWeight = '700';
@@ -696,7 +756,6 @@
         }
 
         async function fetchFTN() {
-            // Ensure trial validation is complete
             if (trialStatus === null) {
                 await initTrial();
             }
@@ -715,11 +774,9 @@
             try {
                 console.log('Fetching APIs...');
 
-                // Show loading hint immediately
                 document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
                 document.getElementById('marketHeading').style.display = 'block';
 
-                // FTN primary + backup fallback
                 let ftnResponse = await fetchWithTimeout(API_URL, 20000).catch(() => null);
                 if (!ftnResponse) {
                     console.log('Primary FTN API failed, trying backup...');
@@ -727,8 +784,8 @@
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
-                    fetchWithTimeout(MARKET_API_URL, 40000).catch(() => null),
-                    fetchWithTimeout(RATES_API_URL, 40000).catch(() => null)
+                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL, 20000).catch(() => null)
                 ]);
 
                 console.log('API responses received');
@@ -736,7 +793,6 @@
                 console.log('Market response:', marketResponse);
                 console.log('Rates response:', ratesResponse);
 
-                // Process FTN data (always required)
                 let data = null;
                 if (ftnResponse && ftnResponse.ok) {
                     console.log('FTN response OK, parsing JSON...');
@@ -754,7 +810,6 @@
                     console.warn('FTN response not OK:', ftnResponse);
                 }
 
-                // If FTN data failed, try cached data
                 if (!data) {
                     console.log('No FTN data, checking cache...');
                     const cached = localStorage.getItem(CACHE_KEY);
@@ -764,7 +819,7 @@
                             const cachedData = JSON.parse(cached);
                             console.log('Cached data parsed:', cachedData);
                             const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                            const maxAge = 30 * 60 * 1000; // 30 minutes
+                            const maxAge = 30 * 60 * 1000;
                             console.log('Cached age (ms):', cachedAge, 'Max age:', maxAge);
 
                             if (cachedAge < maxAge) {
@@ -786,9 +841,7 @@
                     return;
                 }
 
-                // Process Market Expectation (if available)
                 if (marketResponse && marketResponse.ok) {
-                    console.log('Market response OK, parsing...');
                     try {
                         const marketData = await marketResponse.json();
                         if (marketData && !marketData.error) {
@@ -801,9 +854,7 @@
                     console.warn('Market API not available');
                 }
 
-                // Process Fed Rates (if available)
                 if (ratesResponse && ratesResponse.ok) {
-                    console.log('Rates response OK, parsing...');
                     try {
                         const ratesData = await ratesResponse.json();
                         if (ratesData && !ratesData.error) {
@@ -825,7 +876,7 @@
                     try {
                         const cachedData = JSON.parse(cached);
                         const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                        const maxAge = 30 * 60 * 1000; // 30 minutes
+                        const maxAge = 30 * 60 * 1000;
                         if (cachedAge < maxAge) {
                             displayReading(cachedData, true);
                         } else {
