@@ -525,10 +525,16 @@
             if (!trialStatus.valid) {
                 const resultContainer = document.getElementById('result');
                 if (resultContainer) {
-                    const banner = document.createElement('div');
-                    banner.style.cssText = 'background: #1a2332; color: #ffb454; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; border: 1px solid #3a4557;';
-                    banner.innerHTML = '🔓 <strong>Free version</strong> — <a href="' + SUBSCRIPTION_URL + '" style="color: #58a6ff;">Subscribe</a> for API access, historical data, alerts, and a 60‑day free trial.';
-                    resultContainer.prepend(banner);
+                    // --- Delay indicator bar ---
+                    const indicator = document.createElement('div');
+                    indicator.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 12px; color: #6b7a90;';
+                    indicator.innerHTML = `
+                        <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f2c94c; box-shadow: 0 0 6px rgba(242,201,76,0.5);"></span>
+                        30‑minute delayed
+                        <span style="margin: 0 4px; color: #3a4557;">|</span>
+                        <a href="https://ftone-index.github.io/ftone-landing/#contact" style="color: #58a6ff; text-decoration: none; font-weight: 500;">Real‑time view →</a>
+                    `;
+                    resultContainer.prepend(indicator);
                 }
             }
         }
