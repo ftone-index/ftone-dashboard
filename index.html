@@ -346,6 +346,19 @@
         a:hover { text-decoration: underline; }
 
         /* -------- RESPONSIVE -------- */
+        /* -------- DESKTOP FULL-SCREEN -------- */
+        @media (min-width: 768px) {
+            body {
+                padding: 0;
+            }
+            .container {
+                background: transparent;
+                border: none;
+                border-radius: 0;
+                padding: 40px 20px;
+                box-shadow: none;
+            }
+        }        
         @media (max-width: 480px) {
             .container { padding: 30px 24px; }
             .dual-score { font-size: 42px; }
