@@ -794,7 +794,7 @@
 
             console.log('fetchFTN started');
 
-            const fetchWithTimeout = (url, timeout = 20000) => {
+            const fetchWithTimeout = (url, timeout = 30000) => {
                 return Promise.race([
                     fetch(url),
                     new Promise((_, reject) =>
@@ -809,15 +809,15 @@
                 document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
                 document.getElementById('marketHeading').style.display = 'block';
 
-                let ftnResponse = await fetchWithTimeout(API_URL, 20000).catch(() => null);
+                let ftnResponse = await fetchWithTimeout(API_URL, 30000).catch(() => null);
                 if (!ftnResponse) {
                     console.log('Primary FTN API failed, trying backup...');
-                    ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 20000).catch(() => null);
+                    ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 30000).catch(() => null);
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
-                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
-                    fetchWithTimeout(RATES_API_URL, 20000).catch(() => null)
+                    fetchWithTimeout(MARKET_API_URL, 40000).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL, 30000).catch(() => null)
                 ]);
 
                 console.log('API responses received');
