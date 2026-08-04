@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-Tone (FTN) – Federal Reserve Tone Index</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e14;
+            color: #e6e1cf;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #131820;
+            border: 1px solid #2a3342;
+            border-radius: 24px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .badge {
+            display: inline-block;
+            background: #1a2332;
+            color: #ffb454;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #3a4557;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #FFF176;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 4px;
+            text-shadow: 0 0 20px rgba(255, 241, 118, 0.25);
+        }
+
+        /* -------- FLIP CARD -------- */
+        .flip-card {
+            background-color: transparent;
+            perspective: 1000px;
+            margin: 20px 0;
+        }
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .flip-card-inner.flipped {
+            transform: rotateX(180deg);
+        }
+        .flip-card-front,
+        .flip-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 16px;
+            padding: 20px 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #131820;
+            border: 2px solid rgba(255,180,84,0.4);
+            box-shadow: 0 0 30px rgba(255,180,84,0.08);
+            transition: box-shadow 0.3s ease;
+        }
+        .flip-card-front:hover {
+            box-shadow: 0 0 40px rgba(255,180,84,0.15);
+        }
+        .flip-card-back {
+            transform: rotateX(180deg);
+            background: #1a2332;
+            border-color: #2a3342;
+            box-shadow: none;
+        }
+        .flip-card-back .rate-item {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            padding: 6px 0;
+            border-bottom: 1px solid #2a3342;
+            font-size: 14px;
+            color: #b0bdcf;
+        }
+        .flip-card-back .rate-item:last-child {
+            border-bottom: none;
+        }
+        .flip-card-back .rate-value a {
+            color: #f2c94c;
+            text-decoration: none;
+        }
+        .flip-card-back .rate-value a:hover {
+            text-decoration: underline;
+        }
+        .flip-card-back h3 {
+            color: #ffb454;
+            font-size: 14px;
+            margin-bottom: 12px;
+            letter-spacing: 0.06em;
+        }
+        .flip-hint {
+            font-size: 12px;
+            color: #6b7a90;
+            margin-top: 6px;
+            text-align: center;
+            font-weight: 400;
+        }
+
+        /* -------- DUAL SCORE -------- */
+        .dual-score {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            white-space: nowrap;
+            position: relative;
+        }
+        .dual-score .live {
+            color: #8E44AD;
+            text-shadow: 0 0 12px rgba(142, 68, 173, 0.3);
+        }
+        .dual-score .smoothed {
+            color: #4169E1;
+            text-shadow: 0 0 12px rgba(65, 105, 225, 0.2);
+        }
+        .dual-score .arrow {
+            font-size: 32px;
+            color: #6b7a90;
+            margin: 0 5px;
+            vertical-align: middle;
+        }
+        .ftn-formula {
+            font-size: 13px;
+            color: #b0bdcf;
+            margin-top: 2px;
+            margin-bottom: 6px;
+            letter-spacing: 0.04em;
+        }
+
+        /* -------- ALERT INDICATOR -------- */
+        .alert-indicator {
+            display: inline-block;
+            color: #ff6b6b;
+            font-weight: 700;
+            margin-left: 8px;
+            animation: pulse 1.5s infinite;
+            font-size: 18px;
+            vertical-align: middle;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        /* -------- LABEL, CHANGE, CONFIDENCE -------- */
+        .label {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            margin-bottom: 2px;
+            transition: all 0.3s ease;
+        }
+        .change {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+        .confidence {
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 12px;
+            margin: 6px 0 4px;
+        }
+        .confidence-HIGH { background: #1a4c2a; color: #4fc97a; }
+        .confidence-MEDIUM { background: #4a3e1a; color: #f2c94c; }
+        .confidence-LOW { background: #4a1a1a; color: #f26b6b; }
+
+        /* -------- SCALE & BAR -------- */
+        .scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #4a5568;
+            margin: 5px 0 0 0;
+            padding: 0 10px;
+        }
+        .scale span:first-child { color: #4fc97a; }
+        .scale span:nth-child(2) { color: #f2c94c; }
+        .scale span:last-child { color: #f26b6b; }
+        .bar {
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(to right, #4fc97a 0%, #f2c94c 50%, #f26b6b 100%);
+            margin: 0 10px 10px 10px;
+        }
+
+        /* -------- TOGGLES -------- */
+        .sources-toggle,
+        .methodology-toggle,
+        .market-data-toggle {
+            background: none;
+            border: 1px solid #2a3342;
+            color: #ffb454;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 15px 0 10px;
+            width: 100%;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sources-list,
+        .methodology-content,
+        .market-data-list {
+            display: none;
+            text-align: left;
+            background: #0d1117;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 5px;
+            border: 1px solid #2a3342;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #b0bdcf;
+        }
+        .sources-list.open,
+        .methodology-content.open,
+        .market-data-list.open { display: block; }
+        .methodology-content p { margin-bottom: 10px; }
+        .methodology-content strong { color: #f2c94c; }
+        .source-item,
+        .market-data-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #8b95a5;
+        }
+        .source-item a,
+        .market-data-item a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .source-item a:hover,
+        .market-data-item a:hover { text-decoration: underline; }
+
+        /* -------- MARKET EXPECTATION -------- */
+        .market-divider {
+            border: none;
+            border-top: 1px solid #2a3342;
+            margin: 25px 0 20px;
+        }
+        .market-heading {
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            color: #3cc8ff !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.10em !important;
+            margin-bottom: 10px !important;
+            text-shadow: 0 0 12px rgba(60,200,255,0.6) !important;
+        }
+        .market-score {
+            font-size: 55px !important;
+            font-weight: 700 !important;
+            line-height: 1.1 !important;
+            color: #3cc8ff !important;
+            text-shadow: 0 0 22px rgba(60,200,255,0.8), 0 0 44px rgba(60,200,255,0.4) !important;
+        }
+        .market-label {
+            font-size: 17px !important;
+            font-weight: 600 !important;
+            color: #3cc8ff !important;
+            margin-top: 4px !important;
+            text-shadow: 0 0 12px rgba(60,200,255,0.6) !important;
+        }
+
+        /* -------- META & LEGAL -------- */
+        .meta {
+            font-size: 13px;
+            color: #c5cdd9;
+            border-top: 1px solid #1e2733;
+            padding-top: 20px;
+            margin-top: 15px;
+        }
+        .meta .computation-time {
+            color: #00e5ff;
+            font-weight: 600;
+            text-shadow: 0 0 6px rgba(0,229,255,0.3);
+        }
+        .meta .utc-label {
+            color: #c5cdd9;
+            font-weight: 500;
+            text-shadow: none;
+        }
+        .cached-notice {
+            display: inline-block;
+            background: #3a3a1a;
+            color: #f2c94c;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 10px;
+            margin-left: 10px;
+        }
+        .legal-link {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .legal-link a {
+            color: #8b95a5;
+            text-decoration: underline;
+        }
+        .error,
+        .loading { font-size: 16px; margin: 30px 0; }
+        .error { color: #f26b6b; }
+        .loading { color: #6b7a90; animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+        a { color: #ffb454; text-decoration: none; font-size: 13px; }
+        a:hover { text-decoration: underline; }
+
+        /* -------- RESPONSIVE -------- */
+        @media (max-width: 480px) {
+            .container { padding: 30px 24px; }
+            .dual-score { font-size: 42px; }
+            .dual-score .arrow { font-size: 24px; }
+            .market-score { font-size: 42px !important; }
+            .flip-card-inner { height: 230px; }
+            .flip-card-back .rate-item { font-size: 13px; width: 90%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">F‑Tone (FTN)</div>
+        <h1>Federal Reserve<br>Tone Index</h1>
+        <div id="content">
+            <div class="loading" id="loading">Loading…</div>
+            <div id="result" style="display:none;">
+
+                <!-- FLIP CARD -->
+                <div class="flip-card">
+                    <div class="flip-card-inner" id="flipCardInner">
+                        <!-- Front: FTN Score -->
+                        <div class="flip-card-front">
+                            <div class="score-wrapper">
+                                <div class="dual-score" id="ftnDualScore"></div>
+                                <div class="ftn-formula" id="ftnFormula"></div>
+                            </div>
+                            <div class="label" id="ftnLabel"></div>
+                            <div class="change" id="ftnChange"></div>
+                            <div class="confidence" id="ftnConfidence"></div>
+                            <div class="flip-hint">↻ Click to see Fed rates</div>
+                        </div>
+                        <!-- Back: Fed Policy Rates -->
+                        <div class="flip-card-back">
+                            <h3>Fed Policy Rates</h3>
+                            <div class="rate-item">
+                                <span>Fed Funds Rate</span>
+                                <span class="rate-value" id="fedFundsRate">
+                                    <a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank">--</a>
+                                </span>
+                            </div>
+                            <div class="rate-item">
+                                <span>IORB Rate</span>
+                                <span class="rate-value" id="iorbRate">
+                                    <a href="https://fred.stlouisfed.org/series/IORB" target="_blank">--</a>
+                                </span>
+                            </div>
+                            <div class="rate-item">
+                                <span>ON RRP Rate</span>
+                                <span class="rate-value" id="onrrpRate">
+                                    <a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank">--</a>
+                                </span>
+                            </div>
+                            <div class="flip-hint" style="margin-top: 6px;">↻ Click to flip back</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bar"></div>
+                <div class="scale">
+                    <span>Dovish</span><span>Neutral</span><span>Hawkish</span>
+                </div>
+
+                <button class="sources-toggle" id="sourcesBtn">
+                    📄 Sources <span id="sourcesCount"></span>
+                    <span style="float:right;">▼</span>
+                </button>
+                <div class="sources-list" id="sourcesList"></div>
+
+                <button class="methodology-toggle" id="methodologyBtn">
+                    📐 Methodology <span style="float:right;">▼</span>
+                </button>
+                <div class="methodology-content" id="methodologyContent">
+                    <p><strong>1. Introduction:</strong> The F‑Tone Index measures the Federal Reserve's policy tone as expressed in official speeches, FOMC statements and minutes, plus regional Fed speeches, testimony, and Fed blog posts; it includes both rate guidance and balance sheet. A companion Market Expectation score is produced by a separate service using Treasury yields and the US Dollar Index. On the back of the FTN tile, the index also shows the current policy rates directly controlled by the Fed.</p>
+
+                    <p><strong>2. Radical transparency:</strong> The FTN Index is built on one core principle: every score is traceable to its source, every number is verifiable. No black boxes. No hidden logic. Just open data, openly presented.</p>
+
+                    <p><strong>3. Score:</strong> The score uses a scale from 0 = extremely dovish (signalling rate cuts / easing) to 100 = extremely hawkish (signalling rate hikes / tightening). It reflects a combined assessment of two factors:
+                    <br>– <em>Imminence</em>: how soon a change to the federal funds rate is expected.
+                    <br>– <em>Sharpness</em>: how large or decisive that change appears.
+                    <br>These factors are weighed equally. The AI analyses the text for language about inflation, employment, growth, and policy guidance, then returns a single number capturing both the urgency and magnitude of potential rate actions.
+                    <br>If no new Fed communications are available on a given day, the index re‑evaluates the most recent documents, and the source count reflects the number of documents analysed.</p>
+
+                    <p><strong>4. Dual display:</strong> The headline shows <strong>live → 7d avg</strong>:
+                    <br>– <strong>Live score</strong> – the immediate average of today's document scores. It reacts instantly to new Fed language.
+                    <br>– <strong>7d avg</strong> – a rolling average of the last 7 days (6 past days + today so far), designed to filter out noise and reveal the trend.
+                    <br>The ▲ / ▼ / — indicator reflects the daily change in the <em>7d avg</em>, comparing today's 7‑day average (6 past days + today so far) with yesterday's 7‑day average.
+                    <br>If the <strong>live score</strong> moves <strong>5 points or more</strong> in the <strong>opposite direction</strong> of the <strong>smoothed score's movement</strong> (i.e., the 7d avg trend), a persistent alert (⚠️) appears next to the live score for up to 24 hours — as an early warning of a potential trend change.
+                    <br>Traders and short‑term decision‑makers may find the raw score more useful; longer‑term investors and analysts may prefer the smoothed trend.</p>
+
+                    <p><strong>5. Qualitative label:</strong> The “Hawkish” / “Dovish” label shows in which segment of the 0–100 range the 7d avg is anchored:
+                    <br>– <strong>0–20:</strong> Extremely Dovish
+                    <br>– <strong>20–40:</strong> Dovish
+                    <br>– <strong>40–60:</strong> Neutral
+                    <br>– <strong>60–80:</strong> Hawkish
+                    <br>– <strong>80–100:</strong> Extremely Hawkish
+                    <br>The label is a quick visual and mnemonic reference for the score's segment. It does not imply a movement or a trend direction.</p>
+
+                    <p><strong>6. Confidence:</strong> HIGH, MEDIUM, or LOW reflects the breadth of sources analysed and the total text volume. HIGH means ≥4 sources and >8,000 characters of Fed text were processed; MEDIUM means ≥2 sources and >3,000 characters; LOW means fewer sources or less text. It indicates how much information the day’s reading is based on, not the accuracy of the AI score.</p>
+
+                    <p><strong>7. Data availability:</strong> When a fresh index computation cannot be retrieved for any reason, the dashboard displays the most recent successfully computed reading, marked as ‘last reading’.</p>
+
+                    <p><strong>8. Market expectation:</strong> Below the FTN data, a separate section shows what Treasury markets and the US Dollar Index are collectively pricing about the Fed’s next moves. It uses the 2‑year Treasury yield (via FRED), the 2y/10y spread (FRED), and the US Dollar Index DXY (via Yahoo Finance). It is not part of the document‑driven FTN index – it’s a companion indicator for comparison.</p>
+
+                    <p><strong>9. Fed policy rates (flip‑card):</strong> The flip‑card on the FTN tile shows the three key rates the Federal Reserve directly controls: the Fed Funds target range, the Interest on Reserve Balances (IORB) rate, and the Overnight Reverse Repo (ON RRP) rate. These are displayed so you can compare the Fed's actual policy stance with the sentiment expressed in its communications. The data is sourced directly from the Federal Reserve via FRED.</p>
+
+                    <p><strong>10. Inclusive design:</strong> The colour pair used for the live and smoothed scores — a warm purple and a cool blue — is carefully chosen to be clearly distinguishable for users with the most common form of colour vision deficiency (red‑green).</p>
+                </div>
+
+                <!-- MARKET EXPECTATION SECTION -->
+                <hr class="market-divider">
+                <div class="market-heading" id="marketHeading" style="display:none;">Market Expectation</div>
+                <div class="market-score" id="marketScore" style="display:none;">--</div>
+                <div class="market-label" id="marketLabel" style="display:none;"></div>
+
+                <button class="market-data-toggle" id="marketDataBtn" style="display:none;">
+                    📊 Market Data <span style="float:right;">▼</span>
+                </button>
+                <div class="market-data-list" id="marketDataList"></div>
+
+                <div class="meta">
+                    Index computation time:
+                    <span class="computation-time" id="ftnTimestamp"></span>
+                    <span class="utc-label"> UTC</span>
+                    <span class="cached-notice" id="cachedNotice" style="display:none;">last reading</span>
+                </div>
+                <div class="legal-link">
+                    <a href="legal/terms.html" target="_blank">Terms of Service & Disclaimer</a>
+                </div>
+                <div class="legal-link" style="margin-top:4px;">
+                    <a href="https://ftn-index.onrender.com/api/ftn_latest" target="_blank">View raw API</a>
+                </div>
+            </div>
+            <div class="error" id="error" style="display:none;">Unable to load index data. Please try again later.</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://ftn-index.onrender.com/api/ftn_latest';
+        const BACKUP_API_URL = 'https://ftn-index.containers.snapdeploy.dev/api/ftn_latest';
+        const MARKET_API_URL = 'https://ftn-market.onrender.com/api/market_ftn';
+        const RATES_API_URL = 'https://ftn-market.onrender.com/api/fed_rates';
+        const CACHE_KEY = 'ftn_last_reading';
+        const TRIAL_API_URL = 'https://ftn-index.onrender.com/api/validate_trial';
+        const SUBSCRIPTION_URL = 'https://ftone-index.github.io/ftone-landing/#contact';
+
+        // --- TRIAL KEY VALIDATION (Option B) ---
+        let trialStatus = null;
+
+        async function validateTrialKey() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const key = urlParams.get('key');
+
+            if (!key) {
+                return { valid: false, reason: 'No key provided' };
+            }
+
+            try {
+                const response = await fetch(`${TRIAL_API_URL}?key=${encodeURIComponent(key)}`);
+                const data = await response.json();
+
+                if (data.valid) {
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, document.title, newUrl);
+                    return { valid: true };
+                } else {
+                    return { valid: false, reason: data.reason || 'Invalid key' };
+                }
+            } catch (error) {
+                console.error('Trial validation error:', error);
+                return { valid: false, reason: 'Validation service unavailable' };
+            }
+        }
+
+        async function initTrial() {
+            trialStatus = await validateTrialKey();
+            if (!trialStatus.valid) {
+                const resultContainer = document.getElementById('result');
+                if (resultContainer) {
+                    // --- Delay indicator bar ---
+                    const indicator = document.createElement('div');
+                    indicator.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 12px; color: #6b7a90;';
+                    indicator.innerHTML = `
+                        <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f2c94c; box-shadow: 0 0 6px rgba(242,201,76,0.5);"></span>
+                        30‑minute delayed
+                        <span style="margin: 0 4px; color: #3a4557;">|</span>
+                        <a href="https://ftone-index.github.io/ftone-landing/#contact" style="color: #58a6ff; text-decoration: none; font-weight: 500;">Real‑time view ↗</a>
+                    `;
+                    resultContainer.prepend(indicator);
+                }
+            }
+        }
+
+        // --- Flip Card ---
+        document.getElementById('flipCardInner').addEventListener('click', function() {
+            this.classList.toggle('flipped');
+        });
+
+        // --- Dashboard Functions ---
+        function getGradientColor(score) {
+            const s = Math.max(0, Math.min(100, score));
+            const green = { r: 79, g: 201, b: 122 };
+            const yellow = { r: 242, g: 201, b: 76 };
+            const red = { r: 242, g: 107, b: 107 };
+            let r, g, b;
+            if (s <= 50) {
+                const t = s / 50;
+                r = Math.round(green.r + t * (yellow.r - green.r));
+                g = Math.round(green.g + t * (yellow.g - green.g));
+                b = Math.round(green.b + t * (yellow.b - green.b));
+            } else {
+                const t = (s - 50) / 50;
+                r = Math.round(yellow.r + t * (red.r - yellow.r));
+                g = Math.round(yellow.g + t * (red.g - yellow.g));
+                b = Math.round(yellow.b + t * (red.b - yellow.b));
+            }
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function saveLastReading(data) {
+            const reading = {
+                score: data.score,
+                raw_score: data.raw_score,
+                change: data.change,
+                confidence: data.confidence,
+                sourcesCount: data.sources ? data.sources.length : 0,
+                timestamp: data.timestamp,
+                labelText: '',
+                savedAt: new Date().toISOString()
+            };
+            const s = data.score;
+            if (s <= 20) reading.labelText = 'Extremely Dovish';
+            else if (s <= 40) reading.labelText = 'Dovish';
+            else if (s <= 60) reading.labelText = 'Neutral';
+            else if (s <= 80) reading.labelText = 'Hawkish';
+            else reading.labelText = 'Extremely Hawkish';
+            localStorage.setItem(CACHE_KEY, JSON.stringify(reading));
+        }
+
+        function displayMarketExpectation(data) {
+            if (!data || data.error) {
+                document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
+                document.getElementById('marketHeading').style.display = 'block';
+                return;
+            }
+            document.getElementById('marketHeading').style.display = 'block';
+            document.getElementById('marketHeading').innerText = 'Market Expectation';
+            const scoreEl = document.getElementById('marketScore');
+            scoreEl.style.display = 'block';
+            scoreEl.innerText = data.score.toFixed(1);
+            const labelEl = document.getElementById('marketLabel');
+            labelEl.style.display = 'block';
+            labelEl.innerText = data.label;
+
+            const comp = data.components;
+            if (comp) {
+                const listEl = document.getElementById('marketDataList');
+                const y2Display = comp.y2 !== null && comp.y2 !== undefined ? comp.y2.toFixed(2) + '%' : 'N/A';
+                const spreadDisplay = comp.spread !== undefined ? comp.spread.toFixed(2) + '%' : 'N/A';
+                const dxyDisplay = comp.dxy_change !== undefined ? (comp.dxy_change > 0 ? '+' : '') + comp.dxy_change.toFixed(3) + '%' : 'N/A';
+
+                listEl.innerHTML = `
+                    <div class="market-data-item"><strong>2‑year Treasury yield:</strong> ${y2Display} <a href="https://fred.stlouisfed.org/series/DGS2" target="_blank">FRED DGS2</a></div>
+                    <div class="market-data-item"><strong>2y/10y spread:</strong> ${spreadDisplay} <a href="https://fred.stlouisfed.org/series/DGS10" target="_blank">FRED DGS10</a></div>
+                    <div class="market-data-item"><strong>DXY intraday change:</strong> ${dxyDisplay} <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank">DXY (Yahoo Finance)</a></div>
+                    <div class="market-data-item" style="margin-top:8px; color:#f2c94c;"><strong>Final Market Expectation = (hike + spread + DXY) / 3</strong></div>
+                `;
+                document.getElementById('marketDataBtn').style.display = 'flex';
+            }
+        }
+
+        function displayFedRates(data) {
+            if (!data || data.error) return;
+            const fedFundsEl = document.getElementById('fedFundsRate');
+            const iorbEl = document.getElementById('iorbRate');
+            const onrrpEl = document.getElementById('onrrpRate');
+
+            fedFundsEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.fed_funds || '--'} ↗</a>`;
+            iorbEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/IORB" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.iorb || '--'} ↗</a>`;
+            onrrpEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.onrrp || '--'} ↗</a>`;
+        }
+
+        // --- Divergence Alert Logic ---
+        function updateDivergenceAlert(raw, smoothed, prevRaw, prevSmoothed) {
+            const ALERT_KEY = 'ftn_alert';
+            const ALERT_DIVERGENCE_KEY = 'ftn_alert_divergence';
+            const ALERT_TIMESTAMP_KEY = 'ftn_alert_timestamp';
+            const now = Date.now();
+            const threshold = 5;
+
+            const currentDivergence = raw - smoothed;
+            const absCurrentDivergence = Math.abs(currentDivergence);
+
+            const storedAlert = localStorage.getItem(ALERT_KEY);
+            const storedDivergence = parseFloat(localStorage.getItem(ALERT_DIVERGENCE_KEY));
+            const storedTimestamp = parseInt(localStorage.getItem(ALERT_TIMESTAMP_KEY));
+
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                try {
+                    const prevData = JSON.parse(cached);
+                    const prevSmoothed = prevData.score;
+                    const prevRaw = prevData.raw_score;
+                    const smoothedTrend = smoothed - prevSmoothed;
+                    const rawMove = raw - prevRaw;
+                    if (Math.abs(rawMove) >= threshold && (rawMove * smoothedTrend < 0)) {
+                        localStorage.setItem(ALERT_KEY, 'true');
+                        localStorage.setItem(ALERT_DIVERGENCE_KEY, currentDivergence.toString());
+                        localStorage.setItem(ALERT_TIMESTAMP_KEY, now.toString());
+                        return true;
+                    }
+                } catch (e) {
+                    // Ignore cache errors
+                }
+            }
+
+            if (storedAlert && storedDivergence !== undefined && storedTimestamp) {
+                if (now - storedTimestamp > 24 * 60 * 60 * 1000) {
+                    localStorage.removeItem(ALERT_KEY);
+                    localStorage.removeItem(ALERT_DIVERGENCE_KEY);
+                    localStorage.removeItem(ALERT_TIMESTAMP_KEY);
+                    return false;
+                }
+                if (absCurrentDivergence < Math.abs(storedDivergence)) {
+                    localStorage.removeItem(ALERT_KEY);
+                    localStorage.removeItem(ALERT_DIVERGENCE_KEY);
+                    localStorage.removeItem(ALERT_TIMESTAMP_KEY);
+                    return false;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        function displayReading(data, isCached = false) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('result').style.display = 'block';
+
+            const score = data.score;
+            const raw = data.raw_score !== undefined ? data.raw_score : score;
+
+            const alertActive = updateDivergenceAlert(raw, score);
+
+            let dualScoreHTML = `<span class="live">${raw.toFixed(1)}</span> <span class="arrow">→</span> <span class="smoothed">${score.toFixed(1)}</span>`;
+            if (alertActive) {
+                dualScoreHTML += ' <span class="alert-indicator">⚠️</span>';
+            }
+            document.getElementById('ftnDualScore').innerHTML = dualScoreHTML;
+
+            document.getElementById('ftnFormula').innerText = 'live → 7d avg';
+
+            let labelText = '';
+            if (score <= 20) labelText = 'Extremely Dovish';
+            else if (score <= 40) labelText = 'Dovish';
+            else if (score <= 60) labelText = 'Neutral';
+            else if (score <= 80) labelText = 'Hawkish';
+            else labelText = 'Extremely Hawkish';
+
+            const labelEl = document.getElementById('ftnLabel');
+            labelEl.innerText = labelText;
+            labelEl.style.color = getGradientColor(score);
+
+            if (labelText === 'Neutral') {
+                labelEl.style.fontWeight = '700';
+                labelEl.style.fontSize = '18px';
+                labelEl.style.textShadow = '0 0 18px rgba(242,201,76,1), 0 0 36px rgba(242,201,76,0.8)';
+            } else {
+                labelEl.style.fontWeight = '700';
+                labelEl.style.fontSize = '20px';
+                labelEl.style.textShadow = 'none';
+            }
+
+            const change = parseFloat(data.change) || 0;
+            const changeEl = document.getElementById('ftnChange');
+            if (change === 0) {
+                changeEl.innerHTML = `— ${Math.abs(change).toFixed(1)}`;
+                changeEl.style.color = '#8b95a5';
+            } else {
+                const arrow = change > 0 ? '▲' : '▼';
+                changeEl.innerHTML = `${arrow} ${Math.abs(change).toFixed(1)}`;
+                changeEl.style.color = change > 0 ? '#f26b6b' : '#4fc97a';
+            }
+
+            const confEl = document.getElementById('ftnConfidence');
+            const confidence = data.confidence || 'MEDIUM';
+            confEl.innerText = `Confidence: ${confidence}`;
+            confEl.className = 'confidence confidence-' + confidence;
+
+            const sourcesCount = data.sources ? data.sources.length : (data.sourcesCount || 0);
+            document.getElementById('sourcesCount').innerText = `(${sourcesCount})`;
+
+            const sources = data.sources || [];
+            const listEl = document.getElementById('sourcesList');
+            if (sources.length > 0) {
+                listEl.innerHTML = sources.map(s => {
+                    const speaker = s.speaker ? `<strong>${s.speaker}</strong>, ` : '';
+                    return `<div class="source-item">
+                        ${speaker}<a href="${s.url}" target="_blank">${s.title}</a>
+                        <span style="color:#5a6577;"> (${s.chars} chars)</span>
+                    </div>`;
+                }).join('');
+            } else if (isCached) {
+                listEl.innerHTML = '<div class="source-item">Source details unavailable for cached reading.</div>';
+            }
+
+            const ts = data.timestamp || data.savedAt || '';
+            const dt = new Date(ts);
+            const displayTs = dt.toLocaleString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                timeZone: 'UTC'
+            });
+            document.getElementById('ftnTimestamp').innerText = displayTs;
+
+            const cachedNotice = document.getElementById('cachedNotice');
+            if (isCached) {
+                cachedNotice.style.display = 'inline-block';
+            } else {
+                cachedNotice.style.display = 'none';
+            }
+        }
+
+        async function fetchFTN() {
+            if (trialStatus === null) {
+                await initTrial();
+            }
+
+            console.log('fetchFTN started');
+
+            const fetchWithTimeout = (url, timeout = 20000) => {
+                return Promise.race([
+                    fetch(url),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Request timed out')), timeout)
+                    )
+                ]);
+            };
+
+            try {
+                console.log('Fetching APIs...');
+
+                document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
+                document.getElementById('marketHeading').style.display = 'block';
+
+                let ftnResponse = await fetchWithTimeout(API_URL, 20000).catch(() => null);
+                if (!ftnResponse) {
+                    console.log('Primary FTN API failed, trying backup...');
+                    ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 20000).catch(() => null);
+                }
+
+                const [marketResponse, ratesResponse] = await Promise.all([
+                    fetchWithTimeout(MARKET_API_URL, 30000).catch(() => null),
+                    fetchWithTimeout(RATES_API_URL, 20000).catch(() => null)
+                ]);
+
+                console.log('API responses received');
+                console.log('FTN response:', ftnResponse);
+                console.log('Market response:', marketResponse);
+                console.log('Rates response:', ratesResponse);
+
+                let data = null;
+                if (ftnResponse && ftnResponse.ok) {
+                    console.log('FTN response OK, parsing JSON...');
+                    try {
+                        data = await ftnResponse.json();
+                        console.log('FTN data parsed:', data);
+                        if (data && !data.error) {
+                            saveLastReading(data);
+                            displayReading(data, false);
+                        }
+                    } catch (e) {
+                        console.warn('FTN data parse error:', e);
+                    }
+                } else {
+                    console.warn('FTN response not OK:', ftnResponse);
+                }
+
+                if (!data) {
+                    console.log('No FTN data, checking cache...');
+                    const cached = localStorage.getItem(CACHE_KEY);
+                    console.log('Cached data:', cached);
+                    if (cached) {
+                        try {
+                            const cachedData = JSON.parse(cached);
+                            console.log('Cached data parsed:', cachedData);
+                            const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
+                            const maxAge = 30 * 60 * 1000;
+                            console.log('Cached age (ms):', cachedAge, 'Max age:', maxAge);
+
+                            if (cachedAge < maxAge) {
+                                console.log('Cache is fresh, displaying cached data');
+                                displayReading(cachedData, true);
+                            } else {
+                                console.log('Cache is too old, showing error');
+                                document.getElementById('loading').style.display = 'none';
+                                document.getElementById('error').style.display = 'block';
+                            }
+                        } catch (e) {
+                            console.warn('Cache parse error:', e);
+                        }
+                    } else {
+                        console.log('No cached data found');
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('error').style.display = 'block';
+                    }
+                    return;
+                }
+
+                if (marketResponse && marketResponse.ok) {
+                    try {
+                        const marketData = await marketResponse.json();
+                        if (marketData && !marketData.error) {
+                            displayMarketExpectation(marketData);
+                        }
+                    } catch (e) {
+                        console.warn('Market data error:', e);
+                    }
+                } else {
+                    console.warn('Market API not available');
+                }
+
+                if (ratesResponse && ratesResponse.ok) {
+                    try {
+                        const ratesData = await ratesResponse.json();
+                        if (ratesData && !ratesData.error) {
+                            displayFedRates(ratesData);
+                        }
+                    } catch (e) {
+                        console.warn('Rates data error:', e);
+                    }
+                } else {
+                    console.warn('Rates API not available');
+                }
+
+                console.log('fetchFTN completed successfully');
+
+            } catch (err) {
+                console.error('fetchFTN error:', err);
+                const cached = localStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    try {
+                        const cachedData = JSON.parse(cached);
+                        const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
+                        const maxAge = 30 * 60 * 1000;
+                        if (cachedAge < maxAge) {
+                            displayReading(cachedData, true);
+                        } else {
+                            document.getElementById('loading').style.display = 'none';
+                            document.getElementById('error').style.display = 'block';
+                        }
+                    } catch (e) { /* ignore */ }
+                } else {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                }
+            }
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('sourcesBtn').addEventListener('click', function() {
+            const list = document.getElementById('sourcesList');
+            list.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
+        });
+
+        document.getElementById('methodologyBtn').addEventListener('click', function() {
+            const content = document.getElementById('methodologyContent');
+            content.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = content.classList.contains('open') ? '▲' : '▼';
+        });
+
+        document.getElementById('marketDataBtn').addEventListener('click', function() {
+            const list = document.getElementById('marketDataList');
+            list.classList.toggle('open');
+            this.querySelector('span:last-child').innerText = list.classList.contains('open') ? '▲' : '▼';
+        });
+
+        // --- Initial load and refresh ---
+        fetchFTN();
+        setInterval(fetchFTN, 600000);
+    </script>
+</body>
+</html>
