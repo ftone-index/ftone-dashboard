@@ -786,7 +786,7 @@
             }
         }
 
-        async function fetchFTN() {
+async function fetchFTN() {
             if (trialStatus === null) {
                 await initTrial();
             }
@@ -820,54 +820,39 @@
                 ]);
 
                 console.log('API responses received');
+                console.log('FTN response:', ftnResponse);
+                console.log('Market response:', marketResponse);
+                console.log('Rates response:', ratesResponse);
 
                 let data = null;
                 if (ftnResponse && ftnResponse.ok) {
+                    console.log('FTN response OK, parsing JSON...');
                     try {
                         data = await ftnResponse.json();
                         console.log('FTN data parsed:', data);
+                        if (data && !data.error) {
+                            saveLastReading(data);
+                            displayReading(data, false);
+                        }
                     } catch (e) {
                         console.warn('FTN data parse error:', e);
                     }
-                }
-
-                // --- 30-MINUTE DELAY LOGIC (for non-trial users) ---
-                if (data && !data.error) {
-                    const dataTimestamp = new Date(data.timestamp).getTime();
-                    const now = Date.now();
-                    const ageMs = now - dataTimestamp;
-                    const DELAY_MS = 30 * 60 * 1000; // 30 minutes
-
-                    if (!trialStatus || !trialStatus.valid) {
-                        // No valid trial key: enforce 30-minute delay
-                        if (ageMs < DELAY_MS) {
-                            // Data is too fresh — save it for later, but show cached version now
-                            console.log('Data is fresh (' + (ageMs / 60000).toFixed(1) + ' min old), delaying...');
-                            saveLastReading(data); // store it so it becomes available after delay
-                            data = null; // force fallback to cache
-                        } else {
-                            // Data is old enough — show it
-                            console.log('Data is ' + (ageMs / 60000).toFixed(1) + ' min old, showing.');
-                            saveLastReading(data);
-                        }
-                    } else {
-                        // Valid trial key: always show real-time
-                        console.log('Trial key valid, showing real-time.');
-                        saveLastReading(data);
-                    }
-                }
-
-                if (data && !data.error) {
-                    displayReading(data, false);
                 } else {
-                    // Fallback to cache
-                    console.log('No valid data to display, checking cache...');
+                    console.warn('FTN response not OK:', ftnResponse);
+                }
+
+                if (!data) {
+                    console.log('No FTN data, checking cache...');
                     const cached = localStorage.getItem(CACHE_KEY);
+                    console.log('Cached data:', cached);
                     if (cached) {
                         try {
                             const cachedData = JSON.parse(cached);
+                            console.log('Cached data parsed:', cachedData);
                             const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                            const maxAge = 60 * 60 * 1000; // cache valid for 1 hour
+                            const maxAge = 30 * 60 * 1000;
+                            console.log('Cached age (ms):', cachedAge, 'Max age:', maxAge);
+
                             if (cachedAge < maxAge) {
                                 console.log('Cache is fresh, displaying cached data');
                                 displayReading(cachedData, true);
@@ -878,8 +863,6 @@
                             }
                         } catch (e) {
                             console.warn('Cache parse error:', e);
-                            document.getElementById('loading').style.display = 'none';
-                            document.getElementById('error').style.display = 'block';
                         }
                     } else {
                         console.log('No cached data found');
@@ -889,7 +872,6 @@
                     return;
                 }
 
-                // Market and rates (always shown, no delay needed)
                 if (marketResponse && marketResponse.ok) {
                     try {
                         const marketData = await marketResponse.json();
@@ -899,6 +881,8 @@
                     } catch (e) {
                         console.warn('Market data error:', e);
                     }
+                } else {
+                    console.warn('Market API not available');
                 }
 
                 if (ratesResponse && ratesResponse.ok) {
@@ -910,6 +894,8 @@
                     } catch (e) {
                         console.warn('Rates data error:', e);
                     }
+                } else {
+                    console.warn('Rates API not available');
                 }
 
                 console.log('fetchFTN completed successfully');
@@ -921,7 +907,7 @@
                     try {
                         const cachedData = JSON.parse(cached);
                         const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                        const maxAge = 60 * 60 * 1000;
+                        const maxAge = 30 * 60 * 1000;
                         if (cachedAge < maxAge) {
                             displayReading(cachedData, true);
                         } else {
