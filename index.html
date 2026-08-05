@@ -809,7 +809,8 @@ async function fetchFTN() {
                 document.getElementById('marketHeading').innerText = 'Market Expectation (loading...)';
                 document.getElementById('marketHeading').style.display = 'block';
 
-                let ftnResponse = await fetchWithTimeout(API_URL, 30000).catch(() => null);
+                const ftnUrl = (trialStatus && trialStatus.valid) ? API_URL : DELAYED_API_URL;
+                let ftnResponse = await fetchWithTimeout(ftnUrl, 30000).catch(() => null);
                 if (!ftnResponse) {
                     console.log('Primary FTN API failed, trying backup...');
                     ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 30000).catch(() => null);
