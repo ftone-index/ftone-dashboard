@@ -865,7 +865,7 @@ async function fetchFTN() {
                             const cachedData = JSON.parse(cached);
                             console.log('Cached data parsed:', cachedData);
                             const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                            const maxAge = 30 * 60 * 1000;
+                            const maxAge = 120 * 60 * 1000;
                             console.log('Cached age (ms):', cachedAge, 'Max age:', maxAge);
 
                             if (cachedAge < maxAge) {
@@ -922,7 +922,7 @@ async function fetchFTN() {
                     try {
                         const cachedData = JSON.parse(cached);
                         const cachedAge = Date.now() - new Date(cachedData.savedAt).getTime();
-                        const maxAge = 30 * 60 * 1000;
+                        const maxAge = 120 * 60 * 1000;
                         if (cachedAge < maxAge) {
                             displayReading(cachedData, true);
                         } else {
