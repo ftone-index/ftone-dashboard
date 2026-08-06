@@ -821,7 +821,8 @@ async function fetchFTN() {
                 let ftnResponse = await fetchWithTimeout(ftnUrl, 30000).catch(() => null);
                 if (!ftnResponse) {
                     console.log('Primary FTN API failed, trying backup...');
-                    ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 30000).catch(() => null);
+                    const backupUrl = (trialStatus && trialStatus.valid) ? BACKUP_API_URL : DELAYED_BACKUP_API_URL;
+                    ftnResponse = await fetchWithTimeout(backupUrl, 30000).catch(() => null);
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
