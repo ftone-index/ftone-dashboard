@@ -542,7 +542,6 @@
             if (!trialStatus.valid) {
                 const resultContainer = document.getElementById('result');
                 if (resultContainer) {
-                    // --- Delay indicator bar ---
                     const indicator = document.createElement('div');
                     indicator.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 12px; color: #6b7a90;';
                     indicator.innerHTML = `
@@ -552,6 +551,11 @@
                         <a href="https://ftone-index.github.io/ftone-landing/#contact" style="color: #58a6ff; text-decoration: none; font-weight: 500;">Real‑time view ↗</a>
                     `;
                     resultContainer.prepend(indicator);
+                }
+            } else {
+                const rawLink = document.getElementById('rawApiLink');
+                if (rawLink) {
+                    rawLink.href = 'https://ftn-index.onrender.com/api/ftn_latest';
                 }
             }
         }
