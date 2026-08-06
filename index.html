@@ -820,9 +820,13 @@ async function fetchFTN() {
                 const ftnUrl = (trialStatus && trialStatus.valid) ? API_URL : DELAYED_API_URL;
                 let ftnResponse = await fetchWithTimeout(ftnUrl, 30000).catch(() => null);
                 if (!ftnResponse) {
-                    console.log('Primary FTN API failed, trying backup...');
-                    const backupUrl = (trialStatus && trialStatus.valid) ? BACKUP_API_URL : DELAYED_BACKUP_API_URL;
-                    ftnResponse = await fetchWithTimeout(backupUrl, 30000).catch(() => null);
+                    if (trialStatus && trialStatus.valid) {
+                        console.log('Primary FTN API failed, trying backup...');
+                        ftnResponse = await fetchWithTimeout(BACKUP_API_URL, 30000).catch(() => null);
+                    } else {
+                        console.log('Delayed API failed, will fall back to cache.');
+                        ftnResponse = null;
+                    }
                 }
 
                 const [marketResponse, ratesResponse] = await Promise.all([
