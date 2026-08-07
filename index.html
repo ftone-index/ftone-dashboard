@@ -570,7 +570,6 @@
                 const csvLink = document.getElementById('csvLink');
                 if (csvDiv && csvLink) {
                     csvLink.href = 'https://ftn-index.onrender.com/api/historical_csv?key=' + encodeURIComponent(currentKey || '');
-                    csvLink.href = 'https://ftn-index.onrender.com/api/historical_csv?key=' + encodeURIComponent(key || '');
                     csvDiv.style.display = 'block';
                 }
             }
