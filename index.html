@@ -559,9 +559,18 @@
                     resultContainer.prepend(indicator);
                 }
             } else {
+                // Valid trial key: show real-time API link and CSV download
                 const rawLink = document.getElementById('rawApiLink');
                 if (rawLink) {
                     rawLink.href = 'https://ftn-index.onrender.com/api/ftn_latest';
+                }
+                const csvDiv = document.getElementById('csvDownloadLink');
+                const csvLink = document.getElementById('csvLink');
+                if (csvDiv && csvLink) {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const key = urlParams.get('key');
+                    csvLink.href = 'https://ftn-index.onrender.com/api/historical_csv?key=' + encodeURIComponent(key || '');
+                    csvDiv.style.display = 'block';
                 }
             }
         }
