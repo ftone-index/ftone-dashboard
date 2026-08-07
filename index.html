@@ -532,6 +532,7 @@
                 const data = await response.json();
 
                 if (data.valid) {
+                    currentKey = key;
                     const newUrl = window.location.pathname;
                     window.history.replaceState({}, document.title, newUrl);
                     return { valid: true };
