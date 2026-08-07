@@ -517,6 +517,7 @@
 
         // --- TRIAL KEY VALIDATION (Option B) ---
         let trialStatus = null;
+        let currentKey = null;   // store the validated key
 
         async function validateTrialKey() {
             const urlParams = new URLSearchParams(window.location.search);
