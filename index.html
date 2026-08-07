@@ -569,8 +569,7 @@
                 const csvDiv = document.getElementById('csvDownloadLink');
                 const csvLink = document.getElementById('csvLink');
                 if (csvDiv && csvLink) {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const key = urlParams.get('key');
+                    csvLink.href = 'https://ftn-index.onrender.com/api/historical_csv?key=' + encodeURIComponent(currentKey || '');
                     csvLink.href = 'https://ftn-index.onrender.com/api/historical_csv?key=' + encodeURIComponent(key || '');
                     csvDiv.style.display = 'block';
                 }
