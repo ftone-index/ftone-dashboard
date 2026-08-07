@@ -546,12 +546,12 @@
                 const resultContainer = document.getElementById('result');
                 if (resultContainer) {
                     const indicator = document.createElement('div');
-                    indicator.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 12px; color: #00e5ff; text-shadow: 0 0 6px rgba(0,229,255,0.3);';
+                    indicator.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 18px; font-size: 12px; color: #00e5ff;';
                     indicator.innerHTML = `
                         <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f2c94c; box-shadow: 0 0 6px rgba(242,201,76,0.5);"></span>
                         30‑minute delayed
                         <span style="margin: 0 4px; color: #3a4557;">|</span>
-                        <a href="https://ftone-index.github.io/ftone-landing/#contact" style="color: #58a6ff; text-decoration: none; font-weight: 500;">Real‑time view ↗</a>
+                        <a href="https://ftone-index.github.io/ftone-landing/#contact" style="color: #ffb454; text-decoration: none; font-weight: 600; text-shadow: 0 0 6px rgba(255,180,84,0.3);">Real‑time view ↗</a>
                     `;
                     resultContainer.prepend(indicator);
                 }
