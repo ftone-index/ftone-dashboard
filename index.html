@@ -659,9 +659,16 @@
             const iorbEl = document.getElementById('iorbRate');
             const onrrpEl = document.getElementById('onrrpRate');
 
-            fedFundsEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.fed_funds || '--'} ↗</a>`;
-            iorbEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/IORB" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.iorb || '--'} ↗</a>`;
-            onrrpEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank" style="color: #f2c94c; text-decoration: none;">${data.onrrp || '--'} ↗</a>`;
+            const formatRate = (val) => {
+                if (val === null || val === undefined || val === '') return '--';
+                const num = parseFloat(val);
+                if (isNaN(num)) return '--';
+                return num.toFixed(2);
+            };
+
+            fedFundsEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/DFEDTARU" target="_blank" style="color: #f2c94c; text-decoration: none;">${formatRate(data.fed_funds)} ↗</a>`;
+            iorbEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/IORB" target="_blank" style="color: #f2c94c; text-decoration: none;">${formatRate(data.iorb)} ↗</a>`;
+            onrrpEl.innerHTML = `<a href="https://fred.stlouisfed.org/series/RRPONTSYD" target="_blank" style="color: #f2c94c; text-decoration: none;">${formatRate(data.onrrp)} ↗</a>`;
         }
 
         // --- Divergence Alert Logic ---
